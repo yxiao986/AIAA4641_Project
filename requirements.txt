@@ -1,0 +1,6 @@
+requests>=2.31
+networkx>=3.2
+python-louvain>=0.16
+matplotlib>=3.8
+pyvis>=0.3.2
+anthropic>=0.25
