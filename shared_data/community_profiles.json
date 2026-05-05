@@ -1,0 +1,292 @@
+{
+  "0": {
+    "label": "Pop Sensation",
+    "description": "A vibrant community of fans deeply immersed in contemporary pop music, celebrating diverse genres like rock and electronic alongside classic legends.",
+    "top_artists": [
+      "Britney Spears",
+      "Christina Aguilera",
+      "Lady Gaga",
+      "Rihanna",
+      "Katy Perry",
+      "Beyoncé",
+      "Madonna",
+      "Avril Lavigne",
+      "Ke$ha",
+      "Michael Jackson"
+    ],
+    "top_tags": [
+      "pop",
+      "female vocalists",
+      "rock",
+      "dance",
+      "legend",
+      "electronic",
+      "alternative",
+      "sexy",
+      "best",
+      "diva"
+    ],
+    "size": 31
+  },
+  "1": {
+    "label": "Pop Sensation",
+    "description": "A vibrant community of fans deeply engaged in contemporary pop music, celebrating diverse genres like rock, ballads, and hip-hop.",
+    "top_artists": [
+      "Lady Gaga",
+      "Rihanna",
+      "Eminem",
+      "Kanye West",
+      "The Devil Wears Prada",
+      "Paramore",
+      "Céline Dion",
+      "Madonna",
+      "Shakira",
+      "Beyoncé"
+    ],
+    "top_tags": [
+      "pop",
+      "female vocalists",
+      "rock",
+      "ballad",
+      "singer-songwriter",
+      "alternative rock",
+      "alternative",
+      "hip-hop",
+      "country",
+      "hot"
+    ],
+    "size": 24
+  },
+  "2": {
+    "label": "80s New Wave",
+    "description": "A vibrant community of fans deeply immersed in the revival of classic 80s new wave sounds, blending electronic beats with catchy hooks to create timeless hits.",
+    "top_artists": [
+      "Depeche Mode",
+      "Dave Gahan",
+      "Muse",
+      "Placebo",
+      "Martin L. Gore",
+      "Pet Shop Boys",
+      "Nine Inch Nails",
+      "Ladytron",
+      "David Bowie",
+      "Madonna"
+    ],
+    "top_tags": [
+      "electronic",
+      "new wave",
+      "synthpop",
+      "80s",
+      "depeche mode",
+      "pop",
+      "alternative",
+      "alternative rock",
+      "rock",
+      "dance"
+    ],
+    "size": 21
+  },
+  "3": {
+    "label": "Indie-Folk Vibes",
+    "description": "A tight-knit group of listeners who appreciate indie-folk music, focusing on atmospheric soundscapes and introspective lyrics.",
+    "top_artists": [
+      "Grouper",
+      "Kurt Vile",
+      "Atlas Sound",
+      "Benoît Pioulard",
+      "The Mountain Goats",
+      "Billie Holiday",
+      "Juana Molina",
+      "Bob Dylan",
+      "Andrés Calamaro",
+      "The Beatles"
+    ],
+    "top_tags": [
+      "favorite band",
+      "hella diy",
+      "indie-ish",
+      "ambient folk",
+      "best song ever written",
+      "trip hop",
+      "girlamazing",
+      "heartbroke",
+      "yay",
+      "synth-pop"
+    ],
+    "size": 3
+  },
+  "4": {
+    "label": "Pop Sensation",
+    "description": "A vibrant community of fans deeply immersed in contemporary pop music, celebrating diverse genres like R&B, rock, and hip-hop.",
+    "top_artists": [
+      "Britney Spears",
+      "Lady Gaga",
+      "Christina Aguilera",
+      "Madonna",
+      "Rihanna",
+      "Beyoncé",
+      "Paramore",
+      "Mariah Carey",
+      "Taylor Swift",
+      "Girls Aloud"
+    ],
+    "top_tags": [
+      "pop",
+      "female vocalists",
+      "dance",
+      "rnb",
+      "rock",
+      "legend",
+      "hip-hop",
+      "soul",
+      "britney spears",
+      "screamo"
+    ],
+    "size": 28
+  },
+  "5": {
+    "label": "Pop & Alternative Enthusiasts",
+    "description": "This community is deeply passionate about contemporary pop and alternative music genres. Members frequently engage in discussions around top artists like Britney Spears, Avril Lavigne, and The Killers, as well as popular tracks from various subgenres such as dance-pop and indie rock.",
+    "top_artists": [
+      "Britney Spears",
+      "Avril Lavigne",
+      "The Pretty Reckless",
+      "Hilary Duff",
+      "Lindsay Lohan",
+      "Madonna",
+      "Three Days Grace",
+      "The Killers",
+      "Lady Gaga",
+      "Ke$ha"
+    ],
+    "top_tags": [
+      "pop",
+      "alternative",
+      "rock",
+      "dance",
+      "indie rock",
+      "legend",
+      "alternative rock",
+      "female vocalists",
+      "hot",
+      "cute"
+    ],
+    "size": 10
+  },
+  "6": {
+    "label": "80s Rock N' Roll",
+    "description": "A vibrant community of 20 listeners deeply immersed in 80s rock, pop, and new wave genres, sharing their passion for classic hits like Duran Duran, Depeche Mode, and The Beatles.",
+    "top_artists": [
+      "Duran Duran",
+      "Depeche Mode",
+      "Pet Shop Boys",
+      "Madonna",
+      "The Beatles",
+      "The Cure",
+      "U2",
+      "Pearl Jam",
+      "Radiohead",
+      "Electric Light Orchestra"
+    ],
+    "top_tags": [
+      "80s",
+      "rock",
+      "pop",
+      "new wave",
+      "electronic",
+      "90s",
+      "ambient",
+      "mellow",
+      "alternative",
+      "synthpop"
+    ],
+    "size": 20
+  },
+  "7": {
+    "label": "Thrash Metal Underground",
+    "description": "A dedicated group of fans united by their love for thrash metal, sharing insights, reviews, and recommendations among themselves.",
+    "top_artists": [
+      "Iron Maiden",
+      "In Flames",
+      "Metallica",
+      "Guns N' Roses",
+      "Megadeth",
+      "Pink Floyd",
+      "Led Zeppelin",
+      "Opeth",
+      "Amon Amarth",
+      "Children of Bodom"
+    ],
+    "top_tags": [
+      "hard rock",
+      "thrash metal",
+      "heavy metal",
+      "rock",
+      "melodic death metal",
+      "metal",
+      "alternative",
+      "death metal",
+      "80s",
+      "metalcore"
+    ],
+    "size": 33
+  },
+  "8": {
+    "label": "Britpop Rockheads",
+    "description": "A passionate group of fans deeply connected to British alternative rock, known for their love for iconic bands like Blur and U2.",
+    "top_artists": [
+      "Blur",
+      "U2",
+      "The Smiths",
+      "Radiohead",
+      "Muse",
+      "The Frames",
+      "The National",
+      "Beck",
+      "Depeche Mode",
+      "Oasis"
+    ],
+    "top_tags": [
+      "rock",
+      "seen live",
+      "alternative",
+      "alternative rock",
+      "britpop",
+      "awesome",
+      "indie rock",
+      "cover",
+      "sigur ros",
+      "comedy"
+    ],
+    "size": 18
+  },
+  "9": {
+    "label": "Rock & Indie Fans",
+    "description": "A passionate group of listeners focusing on rock and indie music, appreciating diverse subgenres like metalcore, punk, and Christian rock.",
+    "top_artists": [
+      "Paramore",
+      "Lady Gaga",
+      "A Day to Remember",
+      "Placebo",
+      "Within Temptation",
+      "Marcelo Adnet",
+      "Cine",
+      "Charlie Brown Jr.",
+      "ambient",
+      "A Skylit Drive"
+    ],
+    "top_tags": [
+      "female vocalists",
+      "rock",
+      "indie",
+      "alternative",
+      "electronic",
+      "pop",
+      "metalcore",
+      "punk",
+      "christian",
+      "christian rock"
+    ],
+    "size": 11
+  }
+}
