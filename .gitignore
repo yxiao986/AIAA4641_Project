@@ -1,0 +1,5 @@
+shared_data/*.json
+shared_data/*.gml
+shared_data/*.html
+shared_data/*.png
+!shared_data/.gitkeep
