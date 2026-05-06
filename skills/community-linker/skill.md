@@ -1,5 +1,5 @@
 ---
-name: graph-linker
+name: community-linker
 description: "Builds a clean NetworkX graph from raw social network JSON and exports it as GML. Use when user says 'build graph', 'link nodes', 'construct network', or 'run graph linker'."
 author: herry-sketch
 version: 1.0.0
