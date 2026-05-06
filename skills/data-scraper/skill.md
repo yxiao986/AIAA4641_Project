@@ -1,6 +1,7 @@
 ---
 name: lastfm-music-scraper
 description: Collects a Last.fm music listener social graph via BFS expansion. Use when the user asks to scrape, crawl, or collect music listener data, build a music fan dataset, or gather social connections and listening histories from Last.fm. Supports two modes - offline (HetRec 2011 dataset, recommended) and online (live Last.fm REST API) - and three offline seed types (artist, tag, or whole-network). Emits two standardized JSON files (raw_users.json, raw_interactions.json) that downstream community detection and profiling skills consume. Trigger phrases include "scrape Last.fm", "build a music listener graph", "collect fans of an artist", "build a community around a genre tag", "Skill A", and any request to seed a music community analysis pipeline.
+version:1.0.0
 author: ywu044
 tags:
   - data-collection
@@ -52,7 +53,6 @@ known username first, so the online crawler must start from a seed user. Use
 | `--out_dir`      | str    | `shared_data/`                   | both       | Output directory                                       |
 | `--seed_type`    | str    | `artist`                         | hetrec     | One of `artist`, `tag`, `none`                         |
 | `--seed_value`   | str    | `Radiohead` (when type=artist)   | hetrec     | Artist name or tag string; ignored when type=`none`    |
-| `--seed_artist`  | str    | `None`                           | hetrec     | Legacy alias for `--seed_type artist --seed_value ...` |
 | `--data_dir`     | str    | `data/hetrec2011-lastfm-2k/`     | hetrec     | Path to the extracted HetRec dataset                   |
 | `--seed_user`    | str    | `None`                           | api        | Starting Last.fm username (required)                   |
 | `--api_key`      | str    | `$LASTFM_API_KEY`                | api        | Last.fm API key                                        |
