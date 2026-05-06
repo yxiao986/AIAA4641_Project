@@ -1,7 +1,7 @@
 ---
 name: music-community-analysis-agent
 description: "An end-to-end SNA agent that scrapes Last.fm data, builds social graphs, detects fan communities, and generates LLM-powered profiles."
-author: your-team-name
+author: yxiao986
 version: 0.1.0
 tags: [music, social-network-analysis, graph-ml, llm, community-discovery]
 skills:
