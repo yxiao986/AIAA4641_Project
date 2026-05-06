@@ -1,7 +1,7 @@
 ---
 name: community-visualization
 description: "Build an interactive music community network dashboard with reports and static visual outputs. Use when the user says 'visualize the network', 'generate the music dashboard', or 'create the community report'."
-author: Yue Yu
+author: yyu704
 version: 1.0.0
 tags:
   - visualization
