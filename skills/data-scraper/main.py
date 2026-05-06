@@ -448,11 +448,6 @@ def parse_args() -> argparse.Namespace:
                         "supports reverse lookup from artists, so API mode must "
                         "start from a known user.")
 
-    # Legacy alias: --seed_artist still works (hetrec mode only)
-    p.add_argument("--seed_artist", default=None,
-                   help="(legacy, hetrec mode) Equivalent to "
-                        "--seed_type artist --seed_value <name>")
-
     p.add_argument("--max_users", type=int, default=200,
                    help="Maximum users to collect")
     p.add_argument("--out_dir", default="shared_data/",
@@ -465,11 +460,6 @@ def parse_args() -> argparse.Namespace:
                    help="(api mode) Min seconds between API calls")
 
     args = p.parse_args()
-
-    # Translate legacy --seed_artist to the new interface (hetrec mode only)
-    if args.seed_artist is not None:
-        args.seed_type = "artist"
-        args.seed_value = args.seed_artist
 
     # Default seed_value for hetrec/artist mode
     if args.source == "hetrec" and args.seed_type == "artist" and not args.seed_value:
