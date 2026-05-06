@@ -1,14 +1,13 @@
 ---
 name: community-profiler
 description: "Generate human-readable semantic profiles for detected music listener communities using LLM or heuristic fallback. Use when the user says 'profile communities', 'label communities', 'summarize music communities', or 'generate community_profiles.json'."
-author: zzhao885
-version: 1.0.0
+author: ZuriZHAO
+version: 0.1.0
 tags:
   - llm
   - semantic-profiling
   - music-community
   - social-network-analysis
-  - python
 metadata:
   openclaw:
     requires:
