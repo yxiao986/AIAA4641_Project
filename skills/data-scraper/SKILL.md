@@ -129,7 +129,6 @@ python main.py --source hetrec \
 export LASTFM_API_KEY="your_key_here"
  
 python main.py --source api \
-    --api_key {Your last.fm API key} \
     --seed_user "RJ" \
     --max_users 200 --out_dir shared_data/
 ```
