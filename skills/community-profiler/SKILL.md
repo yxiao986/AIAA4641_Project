@@ -44,27 +44,41 @@ Expected input files:
 
 Expected output file:
 
-- `shared_data/community_profiles.json`
+- `shared_data/community-profiles.json`
+
+The input JSON can be a list of node dictionaries, a dictionary containing `users`, `nodes`, `data`, or `items`, or a mapping from username to user record.
 
 ### Step 2: Execute
 
-Run the semantic profiler Python script from the `community_profiler` skill folder.
+Run the semantic profiler Python script from the `community-profiler` skill folder.
+
+Before running with `--provider anthropic`, set the Claude API key as an environment variable:
+
+`export ANTHROPIC_API_KEY=your_key`
+
+On Windows PowerShell, use:
+
+`$env:ANTHROPIC_API_KEY="your_key"`
 
 For a safe local test without API keys, execute:
 
-`python skills/community_profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider heuristic`
+`python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community-profiles.json --provider heuristic`
 
-If the current working directory is already `skills/community_profiler/`, execute:
+If `shared_data/raw_users.json` is not available, run:
 
-`python main.py --clustered_nodes ../../shared_data/clustered_nodes.json --raw_users ../../shared_data/raw_users.json --out_file ../../shared_data/community_profiles.json --provider heuristic`
+`python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --out_file shared_data/community-profiles.json --provider heuristic`
+
+If the current working directory is already `skills/community-profiler/`, execute:
+
+`python main.py --clustered_nodes ../../shared_data/clustered_nodes.json --raw_users ../../shared_data/raw_users.json --out_file ../../shared_data/community-profiles.json --provider heuristic`
 
 For Anthropic Claude profiling, execute:
 
-`python skills/community_profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider anthropic`
+`python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community-profiles.json --provider anthropic --model claude-sonnet-4-6`
 
 For OpenAI profiling, execute:
 
-`python skills/community_profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider openai`
+`python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community-profiles.json --provider openai`
 
 Use `--max_communities 2` when testing API-based runs to reduce cost and verify that the pipeline works before profiling all communities.
 
@@ -72,7 +86,7 @@ Use `--max_communities 2` when testing API-based runs to reduce cost and verify 
 
 Read the terminal output to confirm how many communities were found and profiled.
 
-Confirm that `shared_data/community_profiles.json` has been generated successfully. The output should contain one profile per community, including fields such as:
+Confirm that `shared_data/community-profiles.json` has been generated successfully. The output should contain one profile per community, including fields such as:
 
 - `label`
 - `description`
@@ -88,7 +102,7 @@ If the upstream raw user data does not contain comments, explain that the profil
 
 - If `shared_data/clustered_nodes.json` is missing, instruct the user to run the Graph Linker and Community Detector skills first.
 - If `shared_data/raw_users.json` is missing, continue only if `clustered_nodes.json` already contains music fields such as `top_artists` and `top_tags`; otherwise, warn that the generated profiles may be generic.
-- If API keys are missing, suggest running with `--provider heuristic` or setting `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`.
+- If API keys are missing, the script automatically falls back to `--provider heuristic`. Users can still set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` to enable LLM-based profiling.
 - If an API call fails, fall back to the heuristic profiler so that the full Agent pipeline can still complete.
 - If the LLM returns malformed JSON, extract the first valid JSON object from the response; if extraction fails, use the heuristic fallback.
 - If no comments are present in the raw user data, do not treat it as a failure. Report that this version profiles communities using artists, tags, and tracks, while remaining compatible with future comment-enriched data.

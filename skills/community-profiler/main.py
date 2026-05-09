@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -72,7 +73,7 @@ def normalize_name_list(value: Any) -> list[str]:
         return []
 
     if isinstance(value, str):
-        parts = re.split(r"[,;/|]", value)
+        parts = re.split(r"\s*[,;|]\s*|\s+/\s+", value)
         return [p.strip() for p in parts if p.strip()]
 
     if isinstance(value, list):
@@ -201,7 +202,6 @@ def get_community_id(node: dict) -> str:
             return str(node[key])
 
     raise KeyError(f"Node does not contain community id: {node}")
-
 
 def aggregate_community(members: list[dict]) -> dict:
     # sourcery skip: dict-assign-update-to-union
@@ -362,23 +362,41 @@ def heuristic_profile(community_id: str, agg: dict) -> dict:
     artists = agg.get("top_artists", [])
 
     tag_text = " ".join(tags)
+    tag_text_space = tag_text.replace("-", " ")
 
-    if "punk" in tag_text or "hardcore" in tag_text:
+    def has_any(keywords: list[str]) -> bool:
+        return any(keyword in tag_text or keyword in tag_text_space for keyword in keywords)
+
+    if has_any(["punk", "hardcore"]):
         label = "Punk Revival Circle"
-    elif "metal" in tag_text:
+    elif has_any(["metal"]):
         label = "Heavy Metal Loyalists"
-    elif "hip hop" in tag_text or "rap" in tag_text:
+    elif has_any(["hip hop", "hip-hop", "hiphop", "rap"]):
         label = "Hip-Hop Beat Seekers"
-    elif "electronic" in tag_text or "ambient" in tag_text or "trip-hop" in tag_text:
+    elif has_any(["shoegaze", "dream pop"]):
+        label = "Shoegaze Dream Listeners"
+    elif has_any(["post rock", "post-rock"]):
+        label = "Post-Rock Soundscapers"
+    elif has_any(["folk", "acoustic"]):
+        label = "Folk Acoustic Circle"
+    elif has_any(["soul", "r&b", "rnb", "rhythm and blues"]):
+        label = "Soul R&B Listeners"
+    elif has_any(["k pop", "k-pop", "kpop"]):
+        label = "K-Pop Fandom Cluster"
+    elif has_any(["experimental", "avant garde", "avant-garde"]):
+        label = "Experimental Sound Explorers"
+    elif has_any(["electronic", "electronica", "ambient", "trip hop", "trip-hop", "techno", "house"]):
         label = "Atmospheric Electronica Fans"
-    elif "indie" in tag_text or "alternative" in tag_text:
+    elif has_any(["indie", "alternative"]):
         label = "Indie Alternative Explorers"
-    elif "pop" in tag_text:
+    elif has_any(["pop"]):
         label = "Pop Melody Listeners"
-    elif "jazz" in tag_text:
+    elif has_any(["jazz"]):
         label = "Jazz Fusion Listeners"
-    elif "classical" in tag_text:
+    elif has_any(["classical"]):
         label = "Classical Sound Admirers"
+    elif has_any(["rock"]):
+        label = "Rock Music Listeners"
     else:
         label = f"Community {community_id}"
 
@@ -478,6 +496,16 @@ def main():
 
     args = parser.parse_args()
 
+    # Check API keys before selecting default models.
+    # If the selected API provider is unavailable, fall back to heuristic mode.
+    if args.provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
+        print("ANTHROPIC_API_KEY not found. Falling back to heuristic.")
+        args.provider = "heuristic"
+
+    if args.provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        print("OPENAI_API_KEY not found. Falling back to heuristic.")
+        args.provider = "heuristic"
+        
     # Default models
     if args.model is None:
         if args.provider == "anthropic":
