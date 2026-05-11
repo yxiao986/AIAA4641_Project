@@ -1,46 +1,45 @@
 ---
 name: community-detector
-description: "Detect communities in a social network using Louvain/Girvan-Newman. Use when user says 'detect communities', 'run clustering', or 'find subgroups'."
+description: "Detect communities using Louvain/Girvan-Newman and calculate PageRank. Supports single-algorithm execution or dual-algorithm comparison."
 author: yxiao986
-version: 0.1.0
+version: 0.3.0
 tags:
   - graph
   - community-detection
   - clustering
-  - python
-metadata:
-  openclaw:
-    requires:
-      bins:
-        - python3
+  - pagerank
+  - algorithm-comparison
 ---
 
 # Community Detector Skill
 
-You are helping the user detect communities and subgroups within a music listener social network.
+You are responsible for graph analysis, including community discovery and influence ranking.
 
 ## When to trigger
 
-Activate when the user says "detect communities", "run louvain", "find subgroups", or when the Agent orchestrator reaches the clustering stage (Stage 3).
+1. **Standard Detection**: User asks to "find communities" or "cluster the network".
+2. **Influence Analysis**: User asks "who are the influencers" or "run PageRank".
+3. **Comparison**: User asks to "compare algorithms", "show differences between Louvain and GN", or "run both clustering methods".
 
 ## Workflow
 
-### Step 1: Gather input
+### Step 1: Input Validation
+Ensure `shared_data/network.gml` exists.
 
-Check if the input graph file exists at `shared_data/network.gml`. If it does not exist, halt and inform the user.
+### Step 2: Execution Logic (CRITICAL)
 
-### Step 2: Execute
+- **Scenario A (Standard)**: If the user just wants clustering, run:
+  `python3 main.py --graph shared_data/network.gml --algorithm louvain --out_file shared_data/clustered_nodes.json`
 
-Run the clustering Python script. Execute the following command:
-`python3 main.py --graph shared_data/network.gml --algorithm louvain --out_file shared_data/clustered_nodes.json`
-*(Note: Use `--algorithm girvan_newman` if the user specifically requests it).*
+- **Scenario B (Specific)**: If the user specifies Girvan-Newman, run:
+  `python3 main.py --graph shared_data/network.gml --algorithm girvan_newman --out_file shared_data/clustered_nodes.json`
 
-### Step 3: Present results
+- **Scenario C (Comparison)**: If the user wants to COMPARE, run TWO commands:
+  1. `python3 main.py --graph shared_data/network.gml --algorithm louvain --out_file shared_data/clustered_nodes_louvain.json`
+  2. `python3 main.py --graph shared_data/network.gml --algorithm girvan_newman --out_file shared_data/clustered_nodes_gn.json`
 
-Read the terminal output to find the number of detected communities and the modularity score. Present these quantitative results to the user and confirm that `shared_data/clustered_nodes.json` has been successfully generated.
+### Step 3: Influence Ranking
+Note that `main.py` automatically calculates PageRank and includes `influence_score` in the output JSON, regardless of the clustering algorithm used.
 
-## Error handling
-
-- If `shared_data/network.gml` is missing, instruct the user to run the Data Scraper and Graph Linker skills first.
-- If the execution fails due to missing packages, tell the user to run `pip install networkx python-louvain`.
-- If the graph is too large and Girvan-Newman is taking too long, suggest switching to the `louvain` algorithm for better performance.
+## Output
+Inform the user about the Modularity scores for each run and confirm which JSON files were created in `shared_data/`.
