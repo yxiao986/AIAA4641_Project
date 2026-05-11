@@ -2,6 +2,7 @@
 Skill C — Community Detector
 =============================
 Partitions the social graph into communities using Louvain or Girvan-Newman.
+And calculates the influence score (PageRank) for each node.
 
 Input:  shared_data/network.gml (from Skill B)
 Output: shared_data/clustered_nodes.json
@@ -198,6 +199,17 @@ def main():
 
     log(f"  Community sizes: min={min_size}, max={max_size}, avg={avg_size:.1f}")
 
+    # ── Compute Influence (PageRank) ─────────────────────────────────────────
+    log("")
+    log(f"🌟 Computing node influence (PageRank)...")
+    try:
+        # PageRank considers the edge weights by default if 'weight' attribute exists
+        pagerank_scores = nx.pagerank(G, weight='weight')
+        log(f"  ✅ Influence scores computed for {len(pagerank_scores)} nodes")
+    except Exception as e:
+        log(f"  ⚠️ Could not compute PageRank: {e}")
+        pagerank_scores = {}
+
     # ── Build output JSON ────────────────────────────────────────────────────
     log("")
     log(f"🔨 Building output JSON...")
@@ -220,9 +232,10 @@ def main():
             "top_artists": top_artists,
             "top_tags": top_tags,
             "playcount": int(data.get("playcount", 0)),
+            "influence_score": pagerank_scores.get(node, 0.0)  # <-- 添加了影响力分数
         })
 
-    log(f"  ✅ Prepared {len(result)} nodes with community assignments")
+    log(f"  ✅ Prepared {len(result)} nodes with community assignments and influence scores")
 
     # ── Write output ─────────────────────────────────────────────────────────
     log("")
@@ -245,7 +258,8 @@ def main():
     log(f"   Communities detected: {n_communities}")
     if mod_score is not None:
         log(f"   Modularity score:     {mod_score:.4f}")
-    log(f"   Output file:           {args.out_file}")
+    log(f"   Influence algorithm:  PageRank")
+    log(f"   Output file:          {args.out_file}")
     log("=" * 60)
 
     return 0
