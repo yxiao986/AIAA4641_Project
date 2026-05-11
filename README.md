@@ -101,7 +101,7 @@ python agent.py --source hetrec --query "Analyze the indie rock community" --see
 Online mode uses the live Last.fm API. It must start from a known Last.fm username, not an artist name.   
 
 ```bash
-export LASTFM_API_KEY="your_key_here"
+$env:LASTFM_API_KEY="your_key_here"
 
 python agent.py --source api --query "Analyze the listener network around RJ" --seed_user "RJ"     
 
@@ -133,7 +133,7 @@ python skills/community-detector/main.py --graph shared_data/network.gml --algor
 
 # Skill D — generate semantic profiles
 # Make sure to set your API key if using an LLM provider:
-export ANTHROPIC_API_KEY="your_key_here"          # for Claude
+$env:ANTHROPIC_API_KEY="your_key_here"          # for Claude
 python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider anthropic          #or: openai, heuristic   
 # Heuristic provider example (no API key needed):
 python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider anthropic --model claude-sonnet-4-6   
