@@ -82,39 +82,39 @@ Music_Community_Agent/
 pip install -r requirements.txt
 ```
 
-### 2. Run in offline mode (no API key needed)
+### 2. Run offline mode with HetRec dataset
 
-Uses the bundled HetRec 2011 Last.fm-2K dataset. Recommended for first runs and testing.
-
+This mode uses the local HetRec 2011 Last.fm-2K dataset and does not require a Last.fm API key.
+Make sure the dataset exists at: `data/hetrec2011-lastfm-2k/`   
+Then run:
 ```bash
-python agent.py \
-  --query "Analyze the folk community" \
-  --seed_artist "Bob Dylan" \
-  --skip_scrape
-```
+python agent.py --source hetrec --query "Analyze the indie rock community" --seed_artist "Radiohead" 
 
-> `--skip_scrape` reuses existing `shared_data/raw_users.json` if present, or triggers Skill A in offline (`hetrec`) mode.
+# Optional parameters:     
 
-### 3. Run in online mode (live Last.fm API)
+python agent.py --source hetrec --query "Analyze the indie rock community" --seed_artist "Radiohead" --max_users 50 --algorithm louvain
+  ```
+`--max_users` defaults to 200, and `--algorithm` defaults to louvain.  
+
+### 3. Run online mode with Last.fm API  
+
+Online mode uses the live Last.fm API. It must start from a known Last.fm username, not an artist name.   
 
 ```bash
 export LASTFM_API_KEY="your_key_here"
 
-python agent.py \
-  --query "Analyze the indie rock community" \
-  --seed_artist "Radiohead" \
-  --max_users 200 \
-  --algorithm louvain
-```
+python agent.py --source api --query "Analyze the listener network around RJ" --seed_user "RJ"     
 
-### 4. Compare community detection algorithms
+# Optional:  
+python agent.py --source api --query "Analyze the listener network around RJ" --seed_user "RJ" --max_users 50 --algorithm louvain    
+```  
+
+### 4. Reuse existing scraped data
+
+If `shared_data/raw_users.json` and `shared_data/raw_interactions.json` already exist, you can skip Skill A:  
 
 ```bash
-# Louvain (default — fast, high modularity)
-python agent.py --query "..." --seed_artist "Radiohead" --algorithm louvain
 
-# Girvan-Newman (slower, coarser partitions)
-python agent.py --query "..." --seed_artist "Radiohead" --algorithm girvan_newman
 ```
 
 ### 5. Run any Skill in isolation
@@ -123,36 +123,23 @@ Every Skill is independently executable for development and testing:
 
 ```bash
 # Skill A — scrape data
-python skills/data-scraper/main.py \
-  --source hetrec --seed_type artist --seed_value "Radiohead" \
-  --max_users 200 --out_dir shared_data/
+python skills/data-scraper/main.py --source hetrec --data_dir data/hetrec2011-lastfm-2k/ --seed_type artist --seed_value "Radiohead" --max_users 50 --out_dir shared_data/
 
 # Skill B — build graph
-python skills/community-linker/main.py \
-  --users_file shared_data/raw_users.json \
-  --interactions_file shared_data/raw_interactions.json \
-  --out_graph shared_data/network.gml
+python skills/community-linker/main.py --users_file shared_data/raw_users.json --interactions_file shared_data/raw_interactions.json --out_graph shared_data/network.gml   
 
 # Skill C — detect communities
-python skills/community-detector/main.py \
-  --graph shared_data/network.gml \
-  --algorithm louvain \
-  --out_file shared_data/clustered_nodes.json
+python skills/community-detector/main.py --graph shared_data/network.gml --algorithm louvain --out_file shared_data/clustered_nodes.json  
 
 # Skill D — generate semantic profiles
-python skills/community-profiler/main.py \
-  --clustered_nodes shared_data/clustered_nodes.json \
-  --raw_users shared_data/raw_users.json \
-  --out_file shared_data/community_profiles.json \
-  --provider anthropic          # or: openai, heuristic
+# Make sure to set your API key if using an LLM provider:
+export ANTHROPIC_API_KEY="your_key_here"          # for Claude
+python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider anthropic          #or: openai, heuristic   
+# Heuristic provider example (no API key needed):
+python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider anthropic --model claude-sonnet-4-6   
 
 # Skill E — visualise and report
-python skills/community-visualization/main.py \
-  --graph shared_data/network.gml \
-  --clustered_nodes shared_data/clustered_nodes.json \
-  --community_profiles shared_data/community_profiles.json \
-  --query "Analyze the indie rock community" \
-  --out_dir shared_data/
+python skills/community-visualization/main.py --graph shared_data/network.gml --clustered_nodes shared_data/clustered_nodes.json --community_profiles shared_data/community_profiles.json --query "Analyze the indie rock community" --out_dir shared_data/   
 ```
 
 ---
@@ -186,14 +173,15 @@ Partitions the social graph into communities using one of two algorithms, select
 - **Louvain** — greedy modularity optimisation via `python-louvain`. Runs in O(n log n). Default and recommended for graphs of any practical size.
 - **Girvan-Newman** — iterative edge-betweenness removal via NetworkX. Exact but O(m²n); best used on small graphs or for algorithm comparison.
 
-Reports modularity Q and community size statistics (min, max, average). Outputs `clustered_nodes.json` with a `community_id` integer field appended to each node record.
+Reports modularity Q and community size statistics (min, max, average). Outputs `clustered_nodes.json` with a `community_id` field and an `influence_score` field for each node. The influence score is computed using PageRank and is later used by the community profiler to identify core users within each community.
 
 ---
 
 ### Skill D — Community Profiler (`community-profiler`)
 **Author:** ZuriZHAO · **File:** `skills/community-profiler/main.py`
 
-Generates human-readable semantic profiles for each detected community. Aggregates top artists, genre tags, and tracks per community, then calls an LLM to produce a short label and a 2–3 sentence description. Three providers are available via `--provider`:
+Generates human-readable semantic profiles for each detected community. It aggregates top artists, genre tags, tracks, and the most influential users within each community. If `influence_score` is available in `clustered_nodes.json`, the profiler highlights the highest-influence users in the LLM prompt so that the generated description reflects both musical taste and core community members.   
+Three providers are available via `--provider`:
 
 - `anthropic` — uses Claude (requires `ANTHROPIC_API_KEY`)
 - `openai` — uses GPT (requires `OPENAI_API_KEY`)
@@ -262,6 +250,6 @@ python-louvain>=0.16
 matplotlib>=3.8
 pyvis>=0.3.2
 anthropic>=0.25
-openai>=1.0
+openai>=1.0.0
 ```
 

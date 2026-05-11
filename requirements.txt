@@ -4,3 +4,4 @@ python-louvain>=0.16
 matplotlib>=3.8
 pyvis>=0.3.2
 anthropic>=0.25
+openai>=1.0.0

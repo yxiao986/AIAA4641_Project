@@ -19,17 +19,17 @@ This project is an Agent specifically designed to analyze Last.fm music listener
 
 ## 1. Core Features
 The Agent coordinates five major Skill modules to achieve the following end-to-end pipeline:
-* **Hybrid Data Scraping**: Supports two interchangeable modes for data collection—**Offline** (using the HetRec 2011 dataset for speed and stability) or **Online** (using live Last.fm REST API for real-time data).
+* **Hybrid Data Scraping**: Supports Offline mode using the HetRec 2011 dataset and Online mode using the live Last.fm REST API. **Offline** mode can start from an artist or tag, while **Online** mode must start from a known Last.fm username because the public API no longer supports artist-to-user reverse lookup.
 * **Network Modeling**: Transforms raw JSON data into a standard GML format social graph.
-* **Community Clustering**: Applies Louvain or Girvan-Newman algorithms to partition listeners into communities.
-* **Semantic Profiling**: Uses LLMs (Claude/GPT) to automatically analyze the listening preferences of each community, generating human-readable community descriptions.
+* **Community Clustering**: Applies Louvain or Girvan-Newman algorithms to partition listeners into communities, and computes a PageRank-based `influence_score` for each node.
+* **Semantic Profiling**: Uses LLMs (Claude/GPT) when API keys are available, or a heuristic fallback when API calls fail or no key is configured. The profiler also uses `influence_score` to highlight core users in each community.
 * **Visual Output**: Generates interactive HTML network graphs and Markdown analysis reports.
 
 ## 2. Workflow Orchestration
 
 The Agent orchestrates 5 modular skills through a shared data layer (`shared_data/`):
 
-1.  **Data Collection**: Uses `lastfm-music-scraper` (Skill A) to gather users and interactions.
+1.  **Data Collection**: Uses `data-scraper` (Skill A) to gather users and interactions.
 2.  **Network Construction**: Uses `community-linker` to transform raw JSON profiles into a GML graph.
 3.  **Community Discovery**: Uses `community-detector` to partition the network into distinct sub-communities.
 4.  **Semantic Profiling**: Uses `community-profiler` to generate natural language descriptions for each cluster.
