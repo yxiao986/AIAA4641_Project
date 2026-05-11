@@ -1,9 +1,9 @@
 ---
 name: music-community-analysis-agent
-description: "An end-to-end SNA agent that scrapes Last.fm data, builds social graphs, detects fan communities, and generates LLM-powered profiles."
+description: "An end-to-end SNA agent that scrapes Last.fm data, builds social graphs, compares fan communities, and generates LLM-powered profiles."
 author: yxiao986
-version: 0.1.0
-tags: [music, social-network-analysis, graph-ml, llm, community-discovery]
+version: 0.2.0
+tags: [music, social-network-analysis, graph-ml, llm, community-discovery, algorithms]
 skills:
   - data-scraper
   - community-linker
@@ -16,18 +16,24 @@ skills:
 
 This project is an Agent specifically designed to analyze Last.fm music listener social networks. It responds to natural language commands, automatically mines listener circles for specific music genres or artists, and generates in-depth profiling reports.
 
-
 ## 1. Core Features
 The Agent coordinates five major Skill modules to achieve the following end-to-end pipeline:
 * **Hybrid Data Scraping**: Supports Offline mode using the HetRec 2011 dataset and Online mode using the live Last.fm REST API. **Offline** mode can start from an artist or tag, while **Online** mode must start from a known Last.fm username because the public API no longer supports artist-to-user reverse lookup.
 * **Network Modeling**: Transforms raw JSON data into a standard GML format social graph.
 * **Community Clustering**: Applies Louvain or Girvan-Newman algorithms to partition listeners into communities, and computes a PageRank-based `influence_score` for each node.
+* **Influence Ranking**: Automatically calculates PageRank centralities to identify key opinion leaders (KOLs) within each musical subculture.
 * **Semantic Profiling**: Uses LLMs (Claude/GPT) when API keys are available, or a heuristic fallback when API calls fail or no key is configured. The profiler also uses `influence_score` to highlight core users in each community.
-* **Visual Output**: Generates interactive HTML network graphs and Markdown analysis reports.
+* **Visual Output**: Generates interactive HTML network graphs.
 
-## 2. Workflow Orchestration
+## 2. When to Use (Trigger Keywords)
+Activate this Agent when the user wants to perform an end-to-end social network analysis.
+* "Analyze the indie rock community around Radiohead"
+* "Find subgroups in the folk listener network"
+* "Compare Louvain and Girvan-Newman clustering on Jazz fans"
+* "Identify top influencers in the Last.fm dataset"
 
-The Agent orchestrates 5 modular skills through a shared data layer (`shared_data/`):
+## 3. Configuration & API Keys
+Because this Agent relies on real-time external data scraping and LLM semantic inference, you need to configure API keys for full functionality.
 
 1.  **Data Collection**: Uses `data-scraper` (Skill A) to gather users and interactions.
 2.  **Network Construction**: Uses `community-linker` to transform raw JSON profiles into a GML graph.
@@ -35,14 +41,21 @@ The Agent orchestrates 5 modular skills through a shared data layer (`shared_dat
 4.  **Semantic Profiling**: Uses `community-profiler` to generate natural language descriptions for each cluster.
 5.  **Reporting**: Uses `community-visualization` to produce interactive visualizations and a final Markdown briefing.
 
-## 3. Repository Architecture: A Pipeline Based on "Shared Data"
-This Agent adopts a **"Shared Data Layer"** architecture design:
-* **Independence**: Each Skill is housed within the `skills/` directory and has an independent `main.py`.
-* **Communication Mechanism**: Skills **do not cross-import code**. All information exchange is handled via intermediate files (e.g., `network.gml`, `clustered_nodes.json`) located in the `shared_data/` directory.
-* **Orchestration Logic**: `agent.py` in the root directory acts as the "conductor", sequentially invoking each Skill via subprocesses to ensure fully isolated environments.
+**1. Last.fm API Key (Required for Skill A - Online Mode):**
+Used to scrape real-time user social networks.
+* Mac/Linux: `export LASTFM_API_KEY="your_lastfm_key"`
+* Windows (PowerShell): `$env:LASTFM_API_KEY="your_lastfm_key"`
 
-## 4. Technical Characteristics: Why Do We Have Python Files?
-On StudyClawHub, many Agents only consist of an `AGENTS.md` (purely prompt-driven). However, this project chooses to retain a complete Python codebase based on the following considerations:
+**2. LLM API Key (Required for Skill D - Semantic Profiler):**
+Used to generate human-readable cultural profiles for the detected communities. Depending on your configuration in Skill D, export the relevant key:
+* Mac/Linux: `export ANTHROPIC_API_KEY="your_claude_key"` (or `OPENAI_API_KEY`)
+* Windows (PowerShell): `$env:ANTHROPIC_API_KEY="your_claude_key"`
+
+*(Note: If you do not have a Last.fm API key, you can still run the Agent flawlessly using the offline HetRec dataset.)*
+
+
+## 4. Architecture
+Unlike pure prompt-based agents, this project chooses to retain a complete Python codebase based on the following considerations:
 * **Algorithmic Precision**: Community discovery (like Louvain) and graph modeling involve high-density mathematical computations and large-scale node processing, which exceeds the capabilities of pure text prompts.
 * **Code-Driven Agent**: `agent.py` provides a robust execution engine capable of leveraging professional libraries like NetworkX for precise topological analysis, rather than relying solely on LLM logical deduction.
 * **Scalability**: Each Skill is an independently testable tool. This means you can run any single module in isolation to verify data without needing to launch the entire Agent pipeline every time.
@@ -56,9 +69,25 @@ Music_Community_Agent/
 └── skills/               # Implementation Layer: Contains the specific Python implementations for Skills A-E
 ```
 
-## 6. Quick Start
-By default, the Agent can run in Offline Mode without an API key using pre-loaded datasets:
-`python agent.py --source hetrec --query "Analyze the indie rock community" --seed_artist "Radiohead"`
+## 6. Quick Start & Execution Modes
+The orchestrator (`agent.py`) is highly flexible. Below are the primary ways to run the Agent based on your dataset and algorithm preferences:
 
-For Online Mode (Live API), set your key and run:
-`python agent.py --source api --query "Analyze the listener network around RJ" --seed_user "RJ"`
+### Mode 1: The "Zero-Config" Offline Mode (Recommended for testing)
+Runs entirely on the bundled HetRec 2011 dataset. Requires **NO Last.fm API key**.
+`python agent.py --query "Analyze the folk community" --source hetrec --seed_artist "Bob Dylan"`
+
+### Mode 2: Live Data Extraction (Online Mode)
+Fetches real-time social interactions from the live Last.fm API (Requires `LASTFM_API_KEY`).
+`python agent.py --query "Analyze indie fans" --source api --seed_user "RJ" --max_users 200`
+
+### Mode 3: Choosing a Specific Algorithm
+By default, the Agent uses the highly scalable `louvain` algorithm. You can explicitly switch to the divisive `girvan_newman` algorithm for smaller, high-resolution networks:
+`python agent.py --query "Find subgroups" --source hetrec --algorithm girvan_newman`
+
+### Mode 4: Algorithm Comparison Mode (Advanced)
+Runs BOTH Louvain and Girvan-Newman algorithms sequentially, generates LLM profiles for both sets of clusters, and outputs a side-by-side visualization report.
+`python agent.py --query "Compare Louvain and GN" --source hetrec --compare`
+
+### Mode 5: Fast Re-runs (Skip Scrape)
+If you already have `raw_users.json` generated and just want to tweak the clustering algorithm or LLM profiling without re-downloading data:
+`python agent.py --query "Re-draw the graph" --skip_scrape`
