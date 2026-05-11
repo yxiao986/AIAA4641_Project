@@ -6,7 +6,7 @@ Coordinates five Skills via the shared_data/ directory.
 
 Usage:
     python agent.py --query "Analyze the indie rock community" --seed_artist "Radiohead"
-    python agent.py --query "Find top influencers in jazz" --seed_artist "Miles Davis" --max_users 200
+    python agent.py --query "Compare network clusters" --seed_artist "Radiohead" --compare
 """
 
 import argparse
@@ -70,16 +70,6 @@ def stage_scrape(
     max_users: int,
     lastfm_api_key: str,
 ):
-    """
-    Skill A — Data Scraper
-    Offline mode:
-        source=hetrec, seed_artist is used as artist seed.
-    Online mode:
-        source=api, seed_user is used as Last.fm starting username.
-    Output:
-        shared_data/raw_users.json
-        shared_data/raw_interactions.json
-    """
     log("STAGE 1/5", f"Data scraping [{source}]  (Skill A)")
 
     if source == "hetrec":
@@ -90,7 +80,6 @@ def stage_scrape(
             "--max_users", str(max_users),
             "--out_dir", str(SHARED_DATA),
         ])
-
     elif source == "api":
         rc = run_skill("data-scraper", [
             "--source", "api",
@@ -99,7 +88,6 @@ def stage_scrape(
             "--api_key", lastfm_api_key,
             "--out_dir", str(SHARED_DATA),
         ])
-
     else:
         raise ValueError(f"Unsupported source: {source}")
 
@@ -110,11 +98,6 @@ def stage_scrape(
     check_output(RAW_INTERACTIONS, "raw_interactions.json")
     
 def stage_build_graph():
-    """
-    Skill B — Graph Linker
-    Input : shared_data/raw_users.json, shared_data/raw_interactions.json
-    Output: shared_data/network.gml
-    """
     log("STAGE 2/5", "Building social graph  (Skill B)")
     rc = run_skill("community-linker", [
         "--users_file",        str(RAW_USERS_FILE),
@@ -126,56 +109,91 @@ def stage_build_graph():
     check_output(NETWORK_FILE, "network.gml")
 
 
-def stage_cluster(algorithm: str = "louvain"):
+def stage_cluster(algorithm: str = "louvain", compare: bool = False):
     """
     Skill C — Community Detection
-    Input : shared_data/network.gml
-    Output: shared_data/clustered_nodes.json
+    If compare=True, runs both Louvain and Girvan-Newman algorithms.
+    Returns a list of generated clustered_nodes JSON paths.
     """
-    log("STAGE 3/5", f"Community detection [{algorithm}]  (Skill C)")
-    rc = run_skill("community-detector", [
-        "--graph",      str(NETWORK_FILE),
-        "--algorithm",  algorithm,
-        "--out_file",   str(CLUSTERED_NODES_FILE),
-    ])
-    if rc != 0:
-        log("STAGE 3/5", "Clustering exited with errors.")
-    check_output(CLUSTERED_NODES_FILE, "clustered_nodes.json")
+    if compare:
+        log("STAGE 3/5", "Community detection [COMPARE MODE: Louvain & Girvan-Newman] (Skill C)")
+        out_louvain = SHARED_DATA / "clustered_nodes_louvain.json"
+        out_gn = SHARED_DATA / "clustered_nodes_gn.json"
+        
+        # Run 1: Louvain
+        run_skill("community-detector", [
+            "--graph",      str(NETWORK_FILE),
+            "--algorithm",  "louvain",
+            "--out_file",   str(out_louvain)
+        ])
+        
+        # Run 2: Girvan-Newman
+        run_skill("community-detector", [
+            "--graph",      str(NETWORK_FILE),
+            "--algorithm",  "girvan_newman",
+            "--out_file",   str(out_gn)
+        ])
+        return [out_louvain, out_gn]
+    else:
+        log("STAGE 3/5", f"Community detection [{algorithm}]  (Skill C)")
+        rc = run_skill("community-detector", [
+            "--graph",      str(NETWORK_FILE),
+            "--algorithm",  algorithm,
+            "--out_file",   str(CLUSTERED_NODES_FILE),
+        ])
+        if rc != 0:
+            log("STAGE 3/5", "Clustering exited with errors.")
+        check_output(CLUSTERED_NODES_FILE, "clustered_nodes.json")
+        return [CLUSTERED_NODES_FILE]
 
 
-def stage_profile():
+def stage_profile(cluster_files: list):
     """
     Skill D — Semantic Profiler (LLM-powered)
-    Input : shared_data/clustered_nodes.json, shared_data/raw_users.json
-    Output: shared_data/community_profiles.json
+    Handles multiple clustering files if in compare mode.
+    Returns a list of generated profiles.
     """
-    log("STAGE 4/5", "LLM semantic profiling  (Skill D)")
-    rc = run_skill("community-profiler", [
-        "--clustered_nodes", str(CLUSTERED_NODES_FILE),
-        "--raw_users",       str(RAW_USERS_FILE),
-        "--out_file",        str(COMMUNITY_PROFILES),
-        # "--provider",        "heuristic",
-    ])
-    if rc != 0:
-        log("STAGE 4/5", "Profiler exited with errors.")
-    check_output(COMMUNITY_PROFILES, "community_profiles.json")
+    log("STAGE 4/5", f"LLM semantic profiling for {len(cluster_files)} cluster file(s)  (Skill D)")
+    profile_files = []
+    
+    for c_file in cluster_files:
+        # e.g. clustered_nodes_louvain.json -> profiles_louvain.json
+        p_file = SHARED_DATA / f"profiles_{c_file.stem.replace('clustered_nodes_', '')}.json"
+        
+        rc = run_skill("community-profiler", [
+            "--clustered_nodes", str(c_file),
+            "--raw_users",       str(RAW_USERS_FILE),
+            "--out_file",        str(p_file),
+        ])
+        if rc != 0:
+            log("STAGE 4/5", f"Profiler exited with errors for {c_file.name}.")
+        check_output(p_file, p_file.name)
+        profile_files.append(p_file)
+        
+    return profile_files
 
 
-def stage_visualize(query: str):
+def stage_visualize(query: str, cluster_files: list, profile_files: list, compare: bool):
     """
     Skill E — Visualisation & Report
-    Input : shared_data/network.gml, shared_data/clustered_nodes.json,
-            shared_data/community_profiles.json
-    Output: shared_data/network_viz.html (or .png), shared_data/final_report.md
+    Passes comma-separated paths to Skill E if compare mode is enabled.
     """
     log("STAGE 5/5", "Visualisation & report generation  (Skill E)")
-    rc = run_skill("community-visualization", [
+    
+    c_files_str = ",".join(str(f) for f in cluster_files)
+    p_files_str = ",".join(str(f) for f in profile_files)
+    
+    args = [
         "--graph",             str(NETWORK_FILE),
-        "--clustered_nodes",   str(CLUSTERED_NODES_FILE),
-        "--community_profiles",str(COMMUNITY_PROFILES),
+        "--clustered_nodes",   c_files_str,
+        "--community_profiles",p_files_str,
         "--query",             query,
         "--out_dir",           str(SHARED_DATA),
-    ])
+    ]
+    if compare:
+        args.append("--compare")
+        
+    rc = run_skill("community-visualization", args)
     if rc != 0:
         log("STAGE 5/5", "Visualisation exited with errors.")
     check_output(FINAL_REPORT, "final_report.md")
@@ -186,20 +204,14 @@ def print_summary():
     print("\n" + "═" * 60)
     print("  MUSIC COMMUNITY AGENT — PIPELINE COMPLETE")
     print("═" * 60)
-    outputs = [
-        (RAW_USERS_FILE,       "Raw user data"),
-        (RAW_INTERACTIONS,     "Raw interactions"),
-        (NETWORK_FILE,         "Social graph (GML)"),
-        (CLUSTERED_NODES_FILE, "Clustered nodes"),
-        (COMMUNITY_PROFILES,   "LLM community profiles"),
-        (FINAL_REPORT,         "Final Markdown report"),
-    ]
-    for path, label in outputs:
-        status = "✅" if (path.exists() and path.stat().st_size > 0) else "❌"
-        print(f"  {status}  {label:<28} {path.relative_to(ROOT_DIR)}")
+    
+    # Just a quick check to see what was generated
+    for path in SHARED_DATA.iterdir():
+        if path.is_file() and path.stat().st_size > 0:
+            print(f"  ✅  {path.name:<30}")
 
     if FINAL_REPORT.exists():
-        print(f"\n  📄 Open the report:  {FINAL_REPORT}")
+        print(f"\n  📄 Open the final report:  {FINAL_REPORT}")
     print("═" * 60 + "\n")
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -208,42 +220,15 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Music Community Analysis Agent — orchestrates Skills A–E."
     )
-    parser.add_argument(
-        "--query", required=True,
-        help='Natural-language analysis goal, e.g. "Analyze indie rock community"'
-    )
-    parser.add_argument(
-        "--source",
-        choices=["hetrec", "api"],
-        default="hetrec",
-        help="Data source for Skill A: hetrec=offline dataset, api=live Last.fm API"
-    )
-    parser.add_argument(
-        "--seed_artist",
-        default="Radiohead",
-        help="Offline HetRec artist seed, e.g. \"Radiohead\". Used only when --source hetrec."
-    )
-    parser.add_argument(
-        "--seed_user",
-        default=None,
-        help="Online Last.fm seed username, e.g. \"RJ\". Used only when --source api."
-    )
-    parser.add_argument(
-        "--max_users", type=int, default=150,
-        help="Maximum number of users to scrape (default: 150)"
-    )
-    parser.add_argument(
-        "--algorithm", default="louvain", choices=["louvain", "girvan_newman"],
-        help="Community detection algorithm (default: louvain)"
-    )
-    parser.add_argument(
-        "--lastfm_api_key", default=os.environ.get("LASTFM_API_KEY", ""),
-        help="Last.fm API key (or set LASTFM_API_KEY env var)"
-    )
-    parser.add_argument(
-        "--skip_scrape", action="store_true",
-        help="Skip Stage 1 (use existing raw_users.json / raw_interactions.json)"
-    )
+    parser.add_argument("--query", required=True, help='Natural-language analysis goal')
+    parser.add_argument("--source", choices=["hetrec", "api"], default="hetrec", help="Data source for Skill A")
+    parser.add_argument("--seed_artist", default="Radiohead", help="Offline HetRec artist seed")
+    parser.add_argument("--seed_user", default=None, help="Online Last.fm seed username")
+    parser.add_argument("--max_users", type=int, default=150, help="Maximum number of users to scrape")
+    parser.add_argument("--algorithm", default="louvain", choices=["louvain", "girvan_newman"], help="Community detection algorithm")
+    parser.add_argument("--compare", action="store_true", help="Compare Louvain and Girvan-Newman algorithms")
+    parser.add_argument("--lastfm_api_key", default=os.environ.get("LASTFM_API_KEY", ""), help="Last.fm API key")
+    parser.add_argument("--skip_scrape", action="store_true", help="Skip Stage 1")
     return parser.parse_args()
 
 
@@ -251,61 +236,46 @@ def main():
     args = parse_args()
 
     if not args.skip_scrape:
-        if args.source == "api":
-            if not args.lastfm_api_key:
-                print("ERROR: --source api requires --lastfm_api_key or LASTFM_API_KEY.")
-                sys.exit(1)
-
-            if not args.seed_user:
-                print("ERROR: --source api requires --seed_user. Last.fm API mode cannot start from an artist name.")
-                sys.exit(1)
+        if args.source == "api" and not args.lastfm_api_key:
+            print("ERROR: --source api requires --lastfm_api_key or LASTFM_API_KEY.")
+            sys.exit(1)
+        if args.source == "api" and not args.seed_user:
+            print("ERROR: --source api requires --seed_user.")
+            sys.exit(1)
 
     print("\n" + "═" * 60)
     print("  MUSIC COMMUNITY ANALYSIS AGENT")
     print(f"  Query      : {args.query}")
     print(f"  Source     : {args.source}")
-
-    if args.source == "hetrec":
-        print(f"  Seed artist: {args.seed_artist}")
-    else:
-        print(f"  Seed user  : {args.seed_user}")
-
-    print(f"  Max users  : {args.max_users}")
-    print(f"  Algorithm  : {args.algorithm}")
+    print(f"  Compare    : {'ON (Louvain vs Girvan-Newman)' if args.compare else 'OFF'}")
     print("═" * 60 + "\n")
 
     ensure_shared_data()
     t0 = time.time()
 
-    # ── Stage 1: Scrape ──────────────────────────────────────────────────────
+    # Stage 1: Scrape
     if args.skip_scrape:
         log("STAGE 1/5", "Skipping scrape (--skip_scrape flag set)")
     else:
-        stage_scrape(
-            source=args.source,
-            seed_artist=args.seed_artist,
-            seed_user=args.seed_user,
-            max_users=args.max_users,
-            lastfm_api_key=args.lastfm_api_key,
-        )
+        stage_scrape(args.source, args.seed_artist, args.seed_user, args.max_users, args.lastfm_api_key)
 
-    # ── Stage 2: Build Graph ─────────────────────────────────────────────────
+    # Stage 2: Graph Linker
     if not RAW_USERS_FILE.exists():
-        log("AGENT", "raw_users.json not found — cannot continue. Run without --skip_scrape.")
+        log("AGENT", "raw_users.json not found — cannot continue.")
         sys.exit(1)
     stage_build_graph()
 
-    # ── Stage 3: Cluster ─────────────────────────────────────────────────────
+    # Stage 3: Community Detection (Compare Support)
     if not NETWORK_FILE.exists():
         log("AGENT", "network.gml not found — cannot continue.")
         sys.exit(1)
-    stage_cluster(algorithm=args.algorithm)
+    cluster_files = stage_cluster(algorithm=args.algorithm, compare=args.compare)
 
-    # ── Stage 4: Profile (LLM) ───────────────────────────────────────────────
-    stage_profile()
+    # Stage 4: Profiling (LLM)
+    profile_files = stage_profile(cluster_files)
 
-    # ── Stage 5: Visualise & Report ──────────────────────────────────────────
-    stage_visualize(query=args.query)
+    # Stage 5: Visualization
+    stage_visualize(args.query, cluster_files, profile_files, compare=args.compare)
 
     elapsed = time.time() - t0
     log("AGENT", f"Total pipeline time: {elapsed:.1f}s")
