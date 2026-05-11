@@ -58,7 +58,7 @@ Music_Community_Agent/
 
 ## 6. Quick Start
 By default, the Agent can run in Offline Mode without an API key using pre-loaded datasets:
-`python agent.py --query "Analyze the folk community" --seed_artist "Bob Dylan" --skip_scrape`
+`python agent.py --source hetrec --query "Analyze the indie rock community" --seed_artist "Radiohead"`
 
 For Online Mode (Live API), set your key and run:
-`python agent.py --query "Analyze the indie rock community" --seed_artist "Radiohead"`
+`python agent.py --source api --query "Analyze the listener network around RJ" --seed_user "RJ"`
