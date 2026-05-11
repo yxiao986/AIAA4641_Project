@@ -48,7 +48,7 @@ Expected output file:
 
 The input JSON can be a list of node dictionaries, a dictionary containing `users`, `nodes`, `data`, or `items`, or a mapping from username to user record.
 
-### Step 2: Execute
+### Step 2: Execute(for windows)
 
 Run the semantic profiler Python script from the `community-profiler` skill folder.
 

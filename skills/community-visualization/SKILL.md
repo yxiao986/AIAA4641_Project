@@ -41,7 +41,7 @@ If any file is missing, stop and tell the user which upstream skill needs to be 
 Run the visualization pipeline with the following command:
 
 ```bash
-python skills\skill_e_viz\main.py --graph shared_data\network.gml --clustered_nodes shared_data\clustered_nodes.json --community_profiles shared_data\community_profiles.json --query "Analyze the indie rock community" --out_dir shared_data\
+python skills\community-visualization\main.py --graph shared_data\network.gml --clustered_nodes shared_data\clustered_nodes.json --community_profiles shared_data\community_profiles.json --query "Analyze the indie rock community" --out_dir shared_data\
 ```
 
 This command generates the interactive dashboard, static PNG, markdown report, and rendered HTML report.

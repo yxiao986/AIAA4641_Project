@@ -206,12 +206,14 @@ def get_community_id(node: dict) -> str:
 def aggregate_community(members: list[dict]) -> dict:
     # sourcery skip: dict-assign-update-to-union
     """
-    Aggregate top artists, tags, and tracks across all members of a community.
+    Aggregate top artists, tags, tracks, comments, and influential users
+    across all members of a community.
     """
     artist_counter = Counter()
     tag_counter = Counter()
     track_counter = Counter()
     comment_counter = Counter()
+    influencers = []
 
     for member in members:
         artist_counter.update(normalize_name_list(member.get("top_artists")))
@@ -221,15 +223,39 @@ def aggregate_community(members: list[dict]) -> dict:
 
         for field in ["comments", "top_comments", "recent_comments", "user_comments"]:
             comment_counter.update(normalize_text_list(member.get(field)))
-            
+
+        username = (
+            member.get("username")
+            or member.get("user_name")
+            or member.get("user")
+            or member.get("user_id")
+            or member.get("id")
+            or member.get("name")
+            or "unknown"
+        )
+
+        try:
+            influence_score = float(member.get("influence_score", 0))
+        except (TypeError, ValueError):
+            influence_score = 0.0
+
+        influencers.append({
+            "username": str(username),
+            "influence_score": influence_score,
+        })
+
     return {
         "top_artists": [a for a, _ in artist_counter.most_common(10)],
         "top_tags": [t for t, _ in tag_counter.most_common(10)],
         "top_tracks": [t for t, _ in track_counter.most_common(10)],
         "size": len(members),
-        "top_comments": [c for c, _ in comment_counter.most_common(5)]
+        "top_comments": [c for c, _ in comment_counter.most_common(5)],
+        "top_influencers": sorted(
+            influencers,
+            key=lambda x: x["influence_score"],
+            reverse=True,
+        )[:5],
     }
-
 
 # =========================
 # LLM profiling
@@ -243,6 +269,10 @@ def build_prompt(community_id: str, agg: dict) -> str:
     top_tags = ", ".join(agg["top_tags"]) if agg["top_tags"] else "Unknown"
     top_tracks = ", ".join(agg["top_tracks"]) if agg["top_tracks"] else "Unknown"
     top_comments = "\n".join(f"- {c}" for c in agg.get("top_comments", [])[:5]) or "Unavailable"
+    top_influencers = "\n".join(
+        f"- {item['username']} (influence_score={item['influence_score']:.4f})"
+        for item in agg.get("top_influencers", [])[:5]
+    ) or "Unavailable"
 
     return f"""
 You are analyzing a music listener community discovered through social network analysis.
@@ -255,6 +285,8 @@ Community data:
 - Top tracks: {top_tracks}
 - Representative comments:
 {top_comments}
+- Core influential users by influence_score:
+{top_influencers}
 
 Task:
 Generate a human-readable profile for this music listener community.
@@ -265,6 +297,7 @@ Rules:
 3. The description should summarize the community's musical identity and listening culture.
 4. Respond ONLY with a valid JSON object.
 5. Do not include markdown, explanation, or code fences.
+6. Pay special attention to the users with the highest influence_score when describing the community's core members and culture.  
 
 Required JSON format:
 {{
@@ -321,6 +354,12 @@ def call_anthropic(prompt: str, model: str, max_tokens: int = 256) -> dict:
     )
 
     raw_text = message.content[0].text.strip()
+
+    if (usage := getattr(message, "usage", None)):
+        input_tokens = getattr(usage, "input_tokens", 0)
+        output_tokens = getattr(usage, "output_tokens", 0)
+        print(f"[TOKEN USAGE] input={input_tokens}, output={output_tokens}, total={input_tokens + output_tokens}")
+
     return extract_json_object(raw_text)
 
 
@@ -571,11 +610,15 @@ def main():
         profiles[str(cid)] = {
             "label": label,
             "description": description,
-            "top_artists": agg["top_artists"],
-            "top_tags": agg["top_tags"],
-            "top_tracks": agg["top_tracks"],
-            "top_comments": agg["top_comments"],
-            "size": agg["size"],
+
+            # These fields are not used by the visualization step.
+            # The visualization rebuilds top_artists/top_tags from graph.gml,
+            # and only reads label/description from community_profiles.json.
+            # "top_artists": agg["top_artists"],
+            # "top_tags": agg["top_tags"],
+            # "top_tracks": agg["top_tracks"],
+            # "top_comments": agg["top_comments"],
+            # "size": agg["size"],
         }
         
         print(f"  -> {label}")

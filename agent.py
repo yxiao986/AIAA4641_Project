@@ -63,25 +63,52 @@ def check_output(path: Path, label: str) -> bool:
 
 # ── Pipeline stages ───────────────────────────────────────────────────────────
 
-def stage_scrape(seed_artist: str, max_users: int, lastfm_api_key: str):
+def stage_scrape(
+    source: str,
+    seed_artist: str | None,
+    seed_user: str | None,
+    max_users: int,
+    lastfm_api_key: str,
+):
     """
     Skill A — Data Scraper
-    Input : seed artist name, max_users, Last.fm API key
-    Output: shared_data/raw_users.json, shared_data/raw_interactions.json
+    Offline mode:
+        source=hetrec, seed_artist is used as artist seed.
+    Online mode:
+        source=api, seed_user is used as Last.fm starting username.
+    Output:
+        shared_data/raw_users.json
+        shared_data/raw_interactions.json
     """
-    log("STAGE 1/5", "Data scraping via Last.fm API  (Skill A)")
-    rc = run_skill("skill_a_scraper", [
-        "--seed_artist", seed_artist,
-        "--max_users",   str(max_users),
-        "--api_key",     lastfm_api_key,
-        "--out_dir",     str(SHARED_DATA),
-    ])
+    log("STAGE 1/5", f"Data scraping [{source}]  (Skill A)")
+
+    if source == "hetrec":
+        rc = run_skill("data-scraper", [
+            "--source", "hetrec",
+            "--seed_type", "artist",
+            "--seed_value", seed_artist or "Radiohead",
+            "--max_users", str(max_users),
+            "--out_dir", str(SHARED_DATA),
+        ])
+
+    elif source == "api":
+        rc = run_skill("data-scraper", [
+            "--source", "api",
+            "--seed_user", seed_user,
+            "--max_users", str(max_users),
+            "--api_key", lastfm_api_key,
+            "--out_dir", str(SHARED_DATA),
+        ])
+
+    else:
+        raise ValueError(f"Unsupported source: {source}")
+
     if rc != 0:
         log("STAGE 1/5", "Scraper exited with errors — continuing with existing data if any.")
+
     check_output(RAW_USERS_FILE, "raw_users.json")
     check_output(RAW_INTERACTIONS, "raw_interactions.json")
-
-
+    
 def stage_build_graph():
     """
     Skill B — Graph Linker
@@ -89,7 +116,7 @@ def stage_build_graph():
     Output: shared_data/network.gml
     """
     log("STAGE 2/5", "Building social graph  (Skill B)")
-    rc = run_skill("skill_b_linker", [
+    rc = run_skill("community-linker", [
         "--users_file",        str(RAW_USERS_FILE),
         "--interactions_file", str(RAW_INTERACTIONS),
         "--out_graph",         str(NETWORK_FILE),
@@ -106,7 +133,7 @@ def stage_cluster(algorithm: str = "louvain"):
     Output: shared_data/clustered_nodes.json
     """
     log("STAGE 3/5", f"Community detection [{algorithm}]  (Skill C)")
-    rc = run_skill("skill_c_cluster", [
+    rc = run_skill("community-detector", [
         "--graph",      str(NETWORK_FILE),
         "--algorithm",  algorithm,
         "--out_file",   str(CLUSTERED_NODES_FILE),
@@ -123,10 +150,11 @@ def stage_profile():
     Output: shared_data/community_profiles.json
     """
     log("STAGE 4/5", "LLM semantic profiling  (Skill D)")
-    rc = run_skill("skill_d_profiler", [
+    rc = run_skill("community-profiler", [
         "--clustered_nodes", str(CLUSTERED_NODES_FILE),
         "--raw_users",       str(RAW_USERS_FILE),
         "--out_file",        str(COMMUNITY_PROFILES),
+        # "--provider",        "heuristic",
     ])
     if rc != 0:
         log("STAGE 4/5", "Profiler exited with errors.")
@@ -141,7 +169,7 @@ def stage_visualize(query: str):
     Output: shared_data/network_viz.html (or .png), shared_data/final_report.md
     """
     log("STAGE 5/5", "Visualisation & report generation  (Skill E)")
-    rc = run_skill("skill_e_viz", [
+    rc = run_skill("community-visualization", [
         "--graph",             str(NETWORK_FILE),
         "--clustered_nodes",   str(CLUSTERED_NODES_FILE),
         "--community_profiles",str(COMMUNITY_PROFILES),
@@ -185,8 +213,20 @@ def parse_args():
         help='Natural-language analysis goal, e.g. "Analyze indie rock community"'
     )
     parser.add_argument(
-        "--seed_artist", required=True,
-        help="Seed artist name for Last.fm scraping, e.g. \"Radiohead\""
+        "--source",
+        choices=["hetrec", "api"],
+        default="hetrec",
+        help="Data source for Skill A: hetrec=offline dataset, api=live Last.fm API"
+    )
+    parser.add_argument(
+        "--seed_artist",
+        default="Radiohead",
+        help="Offline HetRec artist seed, e.g. \"Radiohead\". Used only when --source hetrec."
+    )
+    parser.add_argument(
+        "--seed_user",
+        default=None,
+        help="Online Last.fm seed username, e.g. \"RJ\". Used only when --source api."
     )
     parser.add_argument(
         "--max_users", type=int, default=150,
@@ -210,14 +250,26 @@ def parse_args():
 def main():
     args = parse_args()
 
-    if not args.lastfm_api_key and not args.skip_scrape:
-        print("ERROR: Last.fm API key is required. Set --lastfm_api_key or export LASTFM_API_KEY.")
-        sys.exit(1)
+    if not args.skip_scrape:
+        if args.source == "api":
+            if not args.lastfm_api_key:
+                print("ERROR: --source api requires --lastfm_api_key or LASTFM_API_KEY.")
+                sys.exit(1)
+
+            if not args.seed_user:
+                print("ERROR: --source api requires --seed_user. Last.fm API mode cannot start from an artist name.")
+                sys.exit(1)
 
     print("\n" + "═" * 60)
     print("  MUSIC COMMUNITY ANALYSIS AGENT")
     print(f"  Query      : {args.query}")
-    print(f"  Seed artist: {args.seed_artist}")
+    print(f"  Source     : {args.source}")
+
+    if args.source == "hetrec":
+        print(f"  Seed artist: {args.seed_artist}")
+    else:
+        print(f"  Seed user  : {args.seed_user}")
+
     print(f"  Max users  : {args.max_users}")
     print(f"  Algorithm  : {args.algorithm}")
     print("═" * 60 + "\n")
@@ -229,7 +281,13 @@ def main():
     if args.skip_scrape:
         log("STAGE 1/5", "Skipping scrape (--skip_scrape flag set)")
     else:
-        stage_scrape(args.seed_artist, args.max_users, args.lastfm_api_key)
+        stage_scrape(
+            source=args.source,
+            seed_artist=args.seed_artist,
+            seed_user=args.seed_user,
+            max_users=args.max_users,
+            lastfm_api_key=args.lastfm_api_key,
+        )
 
     # ── Stage 2: Build Graph ─────────────────────────────────────────────────
     if not RAW_USERS_FILE.exists():
