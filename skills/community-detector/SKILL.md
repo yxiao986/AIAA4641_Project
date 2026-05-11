@@ -9,6 +9,11 @@ tags:
   - clustering
   - pagerank
   - algorithm-comparison
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - python3
 ---
 
 # Community Detector Skill
