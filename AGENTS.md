@@ -26,99 +26,63 @@ The Agent coordinates five major Skill modules to achieve the following end-to-e
 * **Visual Output**: Generates interactive HTML network graphs.
 
 ## 2. When to Use (Trigger Keywords)
-This project does not require users to type fixed commands.  
-The trigger keywords below are only suggestions. The Agent uses a natural-language planner to infer the user's goal and select the most suitable task and Skill pipeline.
+## When to Use / Trigger Keywords
 
-The Agent supports five main task types:
+The Agent accepts natural-language user queries and maps them to a high-level analysis task.  
+The trigger keywords below are only suggestions. Users do not need to type exact commands.
 
-1. `community_analysis`
-2. `algorithm_comparison`
-3. `full_analysis`
-4. `influence_ranking`
-5. `visualize_existing`
+Detailed Skill-level execution logic is documented separately in each Skill's own `SKILL.md`.  
+This README only explains when the Agent should choose each high-level task.
 
-If the user asks for a downstream Skill but the required input files are not available yet, the Agent will normally run the necessary previous Skills first.  
-For example, if the user asks to generate community profiles but there is no `clustered_nodes.json`, the Agent needs to run graph construction and community detection before profiling.
+If a downstream task depends on files that do not exist yet, the Agent may automatically run the required previous steps first.  
+For example, if the user asks for community profiling but the clustered community file has not been generated yet, the Agent should first prepare the required graph and community detection outputs.
 
-The only exception is `visualize_existing`: this mode is designed to reuse existing files only. If the required existing outputs are missing, the Agent will stop and report which files are missing instead of rerunning the previous pipeline.
+However, `visualize_existing` is different: it is designed to reuse existing results only. If required files are missing, the Agent should report the missing files rather than rerun the full pipeline.
 
 ---
 
-### Agent Task Triggers
+### Supported Agent Tasks
 
-| Agent Task | When to Use | Example Trigger Keywords / Queries | Typical Pipeline |
-|---|---|---|---|
-| `community_analysis` | Use this when the user wants to analyze the community structure of a music network using one community detection method. This is the default task for normal community analysis. | `analyze communities`, `community structure`, `detect communities`, `analyze the indie rock community`, `analyze users around Radiohead`, `社区分析`, `社区结构`, `分析某个音乐社区` | Skill A → Skill B → Skill C → Skill D, with Skill E only if visualization/report is requested |
-| `algorithm_comparison` | Use this when the user wants to compare two community detection algorithms, especially Louvain and Girvan-Newman. | `compare algorithms`, `compare Louvain and Girvan-Newman`, `two methods`, `two results`, `generate two outputs`, `algorithm comparison`, `对比算法`, `比较 Louvain 和 Girvan-Newman`, `生成两种结果`, `两套社区结果` | Skill A → Skill B → Skill C using Louvain + Skill C using Girvan-Newman → comparison metrics; optionally Skill D/E |
-| `full_analysis` | Use this when the user wants the complete end-to-end pipeline and all available outputs. | `full analysis`, `complete analysis`, `comprehensive analysis`, `end-to-end analysis`, `run everything`, `all results`, `完整分析`, `全面分析`, `完整流程`, `跑完整`, `全部分析` | Skill A → Skill B → Skill C using both algorithms → algorithm comparison → influence ranking → Skill D → Skill E |
-| `influence_ranking` | Use this when the user wants to find important, central, or influential users in the network. | `top influencers`, `influence ranking`, `most influential users`, `central users`, `key users`, `important users`, `hub users`, `bridge users`, `找最有影响力的用户`, `核心用户`, `关键用户` | Skill A → Skill B → Skill C → PageRank-based influence ranking; Skill D/E only if report or visualization is requested |
-| `visualize_existing` | Use this when the user only wants to regenerate visualization or reports from existing files, without rerunning scraping, graph construction, clustering, or profiling. | `visualize existing`, `only visualize`, `reuse existing results`, `regenerate dashboard`, `show existing results`, `只可视化已有结果`, `复用已有文件`, `重新生成图表` | Skill E only, using existing `network.gml`, clustered node files, and community profile files |
-
----
-
-### Skill-Level Trigger Explanation
-
-| Skill | Function | When It Is Triggered | Main Inputs | Main Outputs |
-|---|---|---|---|---|
-| Skill A — `data-scraper` | Collects or parses user/music interaction data. | Triggered when the Agent needs raw user and interaction data. This happens in most tasks except `visualize_existing`. | `source`, `seed_type`, `seed_value`, `seed_user`, `max_users` | `raw_users.json`, `raw_interactions.json` |
-| Skill B — `community-linker` | Builds the social/music network graph. | Triggered when a graph is needed for community detection, influence ranking, comparison, or full analysis. | `raw_users.json`, `raw_interactions.json` | `network.gml` |
-| Skill C — `community-detector` | Runs community detection and calculates node-level influence scores. | Triggered when the user asks for community analysis, algorithm comparison, influence ranking, or full analysis. | `network.gml`, selected algorithm | `clustered_nodes.json`, or `clustered_nodes_louvain.json` and `clustered_nodes_girvan_newman.json` in comparison mode |
-| Skill D — `community-profiler` | Generates semantic community labels and descriptions. | Triggered when the user asks to describe, label, profile, explain communities, generate a report, or run full analysis. | clustered node file(s), `raw_users.json` | `community_profiles.json`, or `profiles_louvain.json` and `profiles_girvan_newman.json` in comparison mode |
-| Skill E — `community-visualization` | Generates visualization and final report outputs. | Triggered when the user asks for visualization, dashboard, graph view, report, explanation, or full analysis. Also used directly in `visualize_existing` mode. | `network.gml`, clustered node file(s), community profile file(s) | `final_report.md`, `final_report.html`, visualization files |
-
----
-
-### Source Selection Triggers
-
-| Source | When to Use | Trigger Keywords |
+| Agent Task | When to Use | Example User Queries / Trigger Keywords |
 |---|---|---|
-| `hetrec` | Use the offline HetRec music dataset. This is the default source for artist- or genre-based analysis. | `artist`, `genre`, `tag`, `Radiohead`, `indie rock`, `jazz`, `metal`, `pop`, `hip hop`, `electronic` |
-| `api` | Use live Last.fm API mode. This requires a Last.fm API key and a seed user. | `Last.fm`, `lastfm`, `online`, `API`, `user network`, `username`, `around user ...` |
-
-If the query mentions a known music genre such as `indie rock`, `jazz`, `metal`, `pop`, `hip hop`, or `electronic`, the Agent treats it as a tag-based HetRec query.
-
-If the query mentions a specific artist, the Agent treats it as an artist-based HetRec query.
-
-If no seed is provided in offline mode, the Agent uses `Radiohead` as a safe default seed for demo stability.
+| `community_analysis` | Use this when the user wants to detect, inspect, or understand the community structure of a music/social network. This is the normal single-analysis mode. | `analyze communities`, `detect communities`, `show community structure`, `analyze the indie rock community`, `analyze users around Radiohead`, `community analysis`, `社区分析`, `社区结构`, `分析音乐社区` |
+| `algorithm_comparison` | Use this when the user wants to compare different community detection methods or generate two sets of community results. | `compare algorithms`, `compare Louvain and Girvan-Newman`, `two methods`, `two results`, `algorithm comparison`, `generate two community results`, `对比算法`, `比较 Louvain 和 Girvan-Newman`, `生成两种结果` |
+| `full_analysis` | Use this when the user wants a complete end-to-end analysis, including graph construction, community detection, comparison, influence ranking, profiling, and visualization/report outputs. | `full analysis`, `complete analysis`, `comprehensive analysis`, `end-to-end analysis`, `run everything`, `all results`, `完整分析`, `全面分析`, `完整流程`, `全部跑一遍` |
+| `influence_ranking` | Use this when the user wants to find important, central, influential, or bridge users in the network. | `top influencers`, `influence ranking`, `most influential users`, `central users`, `key users`, `important users`, `hub users`, `bridge users`, `核心用户`, `关键用户`, `最有影响力的用户` |
+| `visualize_existing` | Use this when the user only wants to visualize or report on existing outputs without rerunning earlier analysis steps. | `visualize existing`, `only visualize`, `reuse existing results`, `regenerate dashboard`, `show existing results`, `只可视化已有结果`, `复用已有文件`, `重新生成图表` |
 
 ---
 
-### Algorithm Selection Triggers
+### Task Selection Notes
 
-| Algorithm | When to Use | Trigger Keywords |
-|---|---|---|
-| `louvain` | Default algorithm for normal single-method community analysis. | `louvain`, or no specific algorithm mentioned |
-| `girvan_newman` | Used when the user explicitly asks for Girvan-Newman. | `girvan`, `girvan-newman`, `edge betweenness` |
-| Louvain + Girvan-Newman | Used when the user asks for comparison or multiple results. | `compare`, `comparison`, `two methods`, `two algorithms`, `two results`, `两种方法`, `两个结果`, `对比算法` |
-
----
-
-### Output Intent Triggers
-
-The Agent does not always generate every possible output.  
-It decides whether to run profiling and visualization based on the user's requested output.
-
-| User Intent | Trigger Keywords | Effect |
-|---|---|---|
-| Community profiling | `profile`, `community profile`, `describe communities`, `label communities`, `semantic`, `社区画像`, `社区描述`, `社区标签` | Runs Skill D |
-| Visualization | `visualize`, `visualization`, `dashboard`, `graph view`, `plot`, `chart`, `show me`, `可视化`, `图`, `展示` | Runs Skill E |
-| Report generation | `report`, `final report`, `summary report`, `write-up`, `explain`, `analysis report`, `报告`, `总结`, `解释` | Runs Skill D and Skill E |
-| Full pipeline | `full analysis`, `complete analysis`, `run everything`, `完整分析`, `全面分析`, `全部分析` | Runs all major stages |
-
----
-
-### Dependency Rule
-
-The Skills are connected through files in the `shared_data/` directory.
+The Agent should choose the task based on the user's intent rather than only matching exact keywords.
 
 For example:
 
 ```text
-Skill A produces raw_users.json and raw_interactions.json
-Skill B uses those files to produce network.gml
-Skill C uses network.gml to produce clustered node files
-Skill D uses clustered node files and raw user data to produce community profiles
-Skill E uses the graph, clusters, and profiles to produce visual reports
+User query:
+"Find the most important users in this music network."
+
+Selected task:
+influence_ranking
+
+User query:
+"Generate two community detection results and compare them."
+
+Selected task:
+algorithm_comparison
+
+User query:
+"Give me a full report with community structure, profiles, influencers, and visualizations."
+
+Selected task:
+full_analysis
+
+User query:
+"I already have the result files. Just regenerate the visualization."
+
+Selected task:
+visualize_existing
 ```
 
 ## 3. Configuration & API Keys
