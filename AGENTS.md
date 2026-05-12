@@ -26,11 +26,7 @@ The Agent coordinates five major Skill modules to achieve the following end-to-e
 * **Visual Output**: Generates interactive HTML network graphs.
 
 ## 2. When to Use (Trigger Keywords)
-Activate this Agent when the user wants to perform an end-to-end social network analysis.
-* "Analyze the indie rock community around Radiohead"
-* "Find subgroups in the folk listener network"
-* "Compare Louvain and Girvan-Newman clustering on Jazz fans"
-* "Identify top influencers in the Last.fm dataset"
+
 
 ## 3. Configuration & API Keys
 Because this Agent relies on real-time external data scraping and LLM semantic inference, you need to configure API keys for full functionality.
@@ -63,31 +59,7 @@ Unlike pure prompt-based agents, this project chooses to retain a complete Pytho
 ## 5. Directory Structure
 ```text
 Music_Community_Agent/
-├── agent.py              # Core Orchestration: Handles logic routing and scheduling
 ├── AGENTS.md             # This documentation file
 ├── shared_data/          # Shared Data Layer: Stores JSON and graph files passed between Skills
 └── skills/               # Implementation Layer: Contains the specific Python implementations for Skills A-E
 ```
-
-## 6. Quick Start & Execution Modes
-The orchestrator (`agent.py`) is highly flexible. Below are the primary ways to run the Agent based on your dataset and algorithm preferences:
-
-### Mode 1: The "Zero-Config" Offline Mode (Recommended for testing)
-Runs entirely on the bundled HetRec 2011 dataset. Requires **NO Last.fm API key**.
-`python agent.py --query "Analyze the folk community" --source hetrec --seed_artist "Bob Dylan"`
-
-### Mode 2: Live Data Extraction (Online Mode)
-Fetches real-time social interactions from the live Last.fm API (Requires `LASTFM_API_KEY`).
-`python agent.py --query "Analyze indie fans" --source api --seed_user "RJ" --max_users 200`
-
-### Mode 3: Choosing a Specific Algorithm
-By default, the Agent uses the highly scalable `louvain` algorithm. You can explicitly switch to the divisive `girvan_newman` algorithm for smaller, high-resolution networks:
-`python agent.py --query "Find subgroups" --source hetrec --algorithm girvan_newman`
-
-### Mode 4: Algorithm Comparison Mode (Advanced)
-Runs BOTH Louvain and Girvan-Newman algorithms sequentially, generates LLM profiles for both sets of clusters, and outputs a side-by-side visualization report.
-`python agent.py --query "Compare Louvain and GN" --source hetrec --compare`
-
-### Mode 5: Fast Re-runs (Skip Scrape)
-If you already have `raw_users.json` generated and just want to tweak the clustering algorithm or LLM profiling without re-downloading data:
-`python agent.py --query "Re-draw the graph" --skip_scrape`
