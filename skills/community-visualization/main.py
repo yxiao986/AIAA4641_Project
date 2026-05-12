@@ -10,11 +10,30 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import networkx as nx
 from matplotlib.lines import Line2D
+from networkx.algorithms.community.quality import modularity
 
 
 def load_json(path: str | Path):
     """Load JSON data from a file path."""
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def to_record_list(data) -> list[dict]:
+    """Normalize supported JSON shapes into a list of node records."""
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ("users", "nodes", "data", "items"):
+            if isinstance(data.get(key), list):
+                return data[key]
+        records = []
+        for key, value in data.items():
+            if isinstance(value, dict):
+                item = dict(value)
+                item.setdefault("username", key)
+                records.append(item)
+        return records
+    raise ValueError("Unsupported clustered node JSON format.")
 
 
 def clean_text(value) -> str:
@@ -65,6 +84,31 @@ def community_key(value) -> str:
     return str(value if value is not None else "-1")
 
 
+def split_paths(value: str) -> list[str]:
+    """Split a comma-separated CLI path list into clean path strings."""
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def infer_algorithm_name(path: str | Path, index: int = 0) -> str:
+    """Infer a readable clustering algorithm label from an input filename."""
+    text = str(path).lower()
+    if "louvain" in text:
+        return "Louvain"
+    if "girvan" in text or "_gn" in text or "-gn" in text:
+        return "Girvan-Newman"
+    return f"Algorithm {index + 1}"
+
+
+def output_slug(algorithm: str, index: int = 0) -> str:
+    """Create a stable lowercase output suffix for an algorithm label."""
+    text = algorithm.lower()
+    if "louvain" in text:
+        return "louvain"
+    if "girvan" in text or "newman" in text:
+        return "gn"
+    return f"algo{index + 1}"
+
+
 def jaccard(a: set[str], b: set[str]) -> float:
     """Compute the Jaccard similarity between two sets."""
     if not a and not b:
@@ -108,11 +152,21 @@ def to_script_json(data) -> str:
 def build_partition(clustered_nodes):
     """Build a username-to-community lookup from clustered node data."""
     partition = {}
-    for node in clustered_nodes:
+    for node in to_record_list(clustered_nodes):
         username = clean_text(node.get("username"))
         if username:
             partition[username] = community_key(node.get("community_id", -1))
     return partition
+
+
+def build_influence_lookup(clustered_nodes):
+    """Build a username-to-influence-score lookup from clustered node data."""
+    influence = {}
+    for node in to_record_list(clustered_nodes):
+        username = clean_text(node.get("username"))
+        if username:
+            influence[username] = safe_float(node.get("influence_score", 0.0), 0.0)
+    return influence
 
 
 def build_profile_lookup(profiles):
@@ -139,6 +193,20 @@ def graph_stats(G):
         "avg_clustering": avg_clustering,
         "largest_cc": largest_cc,
     }
+
+
+def compute_partition_modularity(G, partition) -> float:
+    """Compute modularity for a username-to-community mapping."""
+    communities = defaultdict(set)
+    for node in G.nodes():
+        communities[community_key(partition.get(node, "-1"))].add(node)
+    groups = [members for members in communities.values() if members]
+    if not groups or G.number_of_edges() == 0:
+        return 0.0
+    try:
+        return modularity(G, groups, weight="weight")
+    except Exception:
+        return 0.0
 
 
 def community_stats(partition):
@@ -471,10 +539,12 @@ def build_node_records(
     community_map,
     artists_by_node,
     tags_by_node,
+    influence_by_node,
 ):
     """Convert graph nodes into rich records for the dashboard."""
     max_degree = max(degree.values(), default=1)
     max_page = max(pagerank.values(), default=1.0)
+    influence_norm = normalized_map(influence_by_node)
 
     node_records = []
     node_lookup = {}
@@ -483,10 +553,12 @@ def build_node_records(
         profile = profiles.get(cid, {})
         community = community_map.get(cid, {})
         color = palette.get(cid, "#7c3aed")
+        influence_score = influence_by_node.get(node, 0.0)
+        influence_component = influence_norm.get(node, node_importance.get(node, 0.5))
         node_size = 10 + 24 * (
-            0.44 * (degree.get(node, 0) / max_degree if max_degree else 0)
-            + 0.36 * (pagerank.get(node, 0.0) / max_page if max_page else 0)
-            + 0.20 * node_importance.get(node, 0.5)
+            0.50 * influence_component
+            + 0.28 * (degree.get(node, 0) / max_degree if max_degree else 0)
+            + 0.22 * (pagerank.get(node, 0.0) / max_page if max_page else 0)
         )
         node_size = max(8, min(34, node_size))
         tooltip_text = "\n".join(
@@ -495,6 +567,7 @@ def build_node_records(
                 f"Community: {clean_text(profile.get('label', f'Community {cid}'))}",
                 f"Playcount: {safe_int(data.get('playcount', 0)):,}",
                 f"Degree: {degree.get(node, 0)}",
+                f"Influence: {influence_score:.4f}",
                 f"PageRank: {pagerank.get(node, 0.0):.4f}",
                 f"Bridge: {bridge_scores.get(node, 0.0):.3f}",
                 f"Artists: {', '.join(artists_by_node.get(node, [])[:4]) or 'No artist data'}",
@@ -518,6 +591,7 @@ def build_node_records(
             "clustering": round(clustering.get(node, 0.0), 6),
             "betweenness": round(betweenness.get(node, 0.0), 6),
             "importance": round(node_importance.get(node, 0.5), 6),
+            "influence_score": round(influence_score, 6),
             "bridge_score": round(bridge_scores.get(node, 0.0), 6),
             "color_hex": color,
             "color": make_color_pack(color),
@@ -2251,8 +2325,9 @@ def build_dashboard_html(data):
     )
 
 
-def draw_static(G, partition, out_path):
+def draw_static(G, partition, out_path, influence_by_node=None, title="Music Community Network"):
     """Draw a polished static PNG overview of the network."""
+    influence_by_node = influence_by_node or {}
     if G.number_of_nodes() == 0:
         fig = plt.figure(figsize=(10, 6))
         plt.text(0.5, 0.5, "No graph data available", ha="center", va="center")
@@ -2273,10 +2348,13 @@ def draw_static(G, partition, out_path):
     sizes = []
     degree = dict(G.degree())
     max_degree = max(degree.values(), default=1)
+    influence_norm = normalized_map(influence_by_node)
     for node in G.nodes():
         cid = partition.get(node, community_ids[0])
         colors.append(cmap(color_lookup.get(cid, 0)))
-        sizes.append(70 + 380 * (degree.get(node, 0) / max_degree if max_degree else 0))
+        influence_component = influence_norm.get(node, 0.0)
+        degree_component = degree.get(node, 0) / max_degree if max_degree else 0
+        sizes.append(70 + 420 * (0.70 * influence_component + 0.30 * degree_component))
 
     pos = nx.spring_layout(G, seed=42, k=0.45 if G.number_of_nodes() < 220 else 0.20)
 
@@ -2285,7 +2363,7 @@ def draw_static(G, partition, out_path):
     ax.text(
         0.02,
         0.965,
-        "Music Community Network",
+        title,
         transform=ax.transAxes,
         fontsize=24,
         fontweight="bold",
@@ -2296,7 +2374,7 @@ def draw_static(G, partition, out_path):
     ax.text(
         0.02,
         0.93,
-        "Static overview with community grouping, node prominence, and social links",
+        "Static overview with community grouping, influence-scaled nodes, and social links",
         transform=ax.transAxes,
         fontsize=11,
         color="#97a6c6",
@@ -2394,39 +2472,45 @@ def draw_static(G, partition, out_path):
     plt.close(fig)
 
 
-def generate_report(payload, out_path):
-    """Generate the markdown report summarizing the analysis results."""
+def append_payload_report_section(lines, payload, heading_prefix=""):
+    """Append detailed report tables for one algorithm payload."""
     stats = payload["stats"]
     communities = payload["communities"]
     insights = payload["insights"]
     top_hubs = insights.get("top_hubs", [])
     top_bridges = insights.get("top_bridges", [])
+    prefix = f"{heading_prefix} " if heading_prefix else ""
 
-    lines = [
-        "## Network Overview",
-        "",
-        "| Metric | Value |",
-        "| --- | ---: |",
-        f"| Nodes | {stats['nodes']} |",
-        f"| Edges | {stats['edges']} |",
-        f"| Communities | {stats['communities']} |",
-        f"| Density | {stats['density']:.4f} |",
-        f"| Average degree | {stats['avg_degree']:.2f} |",
-        f"| Average clustering | {stats['avg_clustering']:.4f} |",
-        f"| Largest connected component | {stats['largest_cc']} |",
-        "",
-        "## Global Insights",
-        "",
-        f"- Largest community: {insights.get('largest_community', {}).get('label', 'N/A')}",
-        f"- Densest community: {insights.get('densest_community', {}).get('label', 'N/A')}",
-        f"- Top hub: {insights.get('top_hub', {}).get('id', 'N/A')}",
-        f"- Best bridge: {insights.get('top_bridge', {}).get('id', 'N/A')}",
-        "",
-        "## Community Snapshot",
-        "",
-        "| Community | Size | Density | Avg degree | Top artists |",
-        "| --- | ---: | ---: | ---: | --- |",
-    ]
+    lines.extend(
+        [
+            f"## {prefix}Network Overview",
+            "",
+            "| Metric | Value |",
+            "| --- | ---: |",
+            f"| Algorithm | {payload.get('algorithm', 'Single run')} |",
+            f"| Nodes | {stats['nodes']} |",
+            f"| Edges | {stats['edges']} |",
+            f"| Communities | {stats['communities']} |",
+            f"| Modularity | {stats.get('modularity', 0.0):.4f} |",
+            f"| Density | {stats['density']:.4f} |",
+            f"| Average degree | {stats['avg_degree']:.2f} |",
+            f"| Average clustering | {stats['avg_clustering']:.4f} |",
+            f"| Largest connected component | {stats['largest_cc']} |",
+            "",
+            f"## {prefix}Global Insights",
+            "",
+            f"- Largest community: {insights.get('largest_community', {}).get('label', 'N/A')}",
+            f"- Densest community: {insights.get('densest_community', {}).get('label', 'N/A')}",
+            f"- Top hub: {insights.get('top_hub', {}).get('id', 'N/A')}",
+            f"- Best bridge: {insights.get('top_bridge', {}).get('id', 'N/A')}",
+            f"- Top influence user: {insights.get('top_influence', {}).get('id', 'N/A')}",
+            "",
+            f"## {prefix}Community Snapshot",
+            "",
+            "| Community | Size | Density | Avg degree | Top artists |",
+            "| --- | ---: | ---: | ---: | --- |",
+        ]
+    )
 
     for community in sorted(communities, key=lambda c: (-c["size"], c["label"])):
         lines.append(
@@ -2437,7 +2521,7 @@ def generate_report(payload, out_path):
     lines.extend(
         [
             "",
-            "## Top Hubs",
+            f"## {prefix}Top Hubs",
             "",
             "| Node | Community | Degree | PageRank |",
             "| --- | --- | ---: | ---: |",
@@ -2451,7 +2535,7 @@ def generate_report(payload, out_path):
     lines.extend(
         [
             "",
-            "## Bridge Nodes",
+            f"## {prefix}Bridge Nodes",
             "",
             "| Node | Community | Bridge score | External communities |",
             "| --- | --- | ---: | ---: |",
@@ -2462,13 +2546,67 @@ def generate_report(payload, out_path):
             f"| {item['id']} | {item['community_label']} | {item['bridge_score']:.4f} | {item['cross_community_neighbors']} |"
         )
 
+
+def generate_report(payload, out_path, comparison_payloads=None):
+    """Generate the markdown report summarizing the analysis results."""
+    comparison_payloads = comparison_payloads or []
+    if comparison_payloads:
+        lines = [
+            "## Algorithm Comparison",
+            "",
+            "| Algorithm | Nodes | Edges | Community Count | Modularity | Top influence user | Outputs |",
+            "| --- | ---: | ---: | ---: | ---: | --- | --- |",
+        ]
+        for item in comparison_payloads:
+            item_stats = item["stats"]
+            top_influence = item.get("insights", {}).get("top_influence", {})
+            outputs = item.get("outputs", {})
+            output_links = ", ".join(
+                f"`{name}`"
+                for name in (outputs.get("html"), outputs.get("png"))
+                if name
+            )
+            lines.append(
+                f"| {item.get('algorithm', 'Algorithm')} | {item_stats['nodes']} | {item_stats['edges']} | "
+                f"{item_stats['communities']} | {item_stats.get('modularity', 0.0):.4f} | "
+                f"{top_influence.get('id', 'N/A')} | {output_links} |"
+            )
+        lines.extend(
+            [
+                "",
+                "## Comparison Summary",
+                "",
+            ]
+        )
+        best_modularity = max(comparison_payloads, key=lambda item: item["stats"].get("modularity", 0.0))
+        lines.extend(
+            [
+                f"- Highest modularity: {best_modularity.get('algorithm', 'Algorithm')} ({best_modularity['stats'].get('modularity', 0.0):.4f})",
+                "- Detailed sections below list each algorithm separately.",
+                "",
+            ]
+        )
+        for item in comparison_payloads:
+            append_payload_report_section(lines, item, item.get("algorithm", "Algorithm"))
+            lines.append("")
+    else:
+        lines = []
+        append_payload_report_section(lines, payload)
+
     lines.extend(
         [
             "",
             "## Visualization Outputs",
             "",
-            "- `network_viz.html` interactive dashboard",
-            "- `network_viz.png` static overview",
+            *[
+                f"- `{name}`"
+                for item in (comparison_payloads or [payload])
+                for name in (
+                    item.get("outputs", {}).get("html"),
+                    item.get("outputs", {}).get("png"),
+                )
+                if name
+            ],
             "",
             "*Report auto-generated by Skill E.*",
         ]
@@ -2698,9 +2836,10 @@ def render_report_html(markdown_text: str, payload) -> str:
 """
 
 
-def build_payload(G, clustered_nodes, community_profiles, query):
+def build_payload(G, clustered_nodes, community_profiles, query, algorithm="Single run"):
     """Assemble all computed data into the final visualization payload."""
     partition = build_partition(clustered_nodes)
+    influence_by_node = build_influence_lookup(clustered_nodes)
     profiles = build_profile_lookup(community_profiles)
     degree, closeness, pagerank, clustering, betweenness = compute_centrality_metrics(G)
 
@@ -2800,6 +2939,7 @@ def build_payload(G, clustered_nodes, community_profiles, query):
         community_map,
         artists_by_node,
         tags_by_node,
+        influence_by_node,
     )
 
     # Fill recommendation community labels now that community_map exists.
@@ -2832,9 +2972,11 @@ def build_payload(G, clustered_nodes, community_profiles, query):
     if node_records_list:
         top_hub = max(node_records_list, key=lambda n: (n["degree"], n["pagerank"]))
         top_bridge = max(node_records_list, key=lambda n: (n["bridge_score"], n["betweenness"]))
+        top_influence = max(node_records_list, key=lambda n: (n["influence_score"], n["pagerank"], n["id"]))
     else:
         top_hub = {}
         top_bridge = {}
+        top_influence = {}
 
     max_weight = max((safe_float(edge_data.get("weight", 1), 1.0) for _, _, edge_data in G.edges(data=True)), default=1.0)
     edges = build_edge_records(G, partition)
@@ -2852,10 +2994,12 @@ def build_payload(G, clustered_nodes, community_profiles, query):
         community["sample_members"] = sorted(members)[:8]
 
     payload = {
+        "algorithm": clean_text(algorithm),
         "query": clean_text(query),
         "stats": {
             **graph_stats(G),
             "communities": len(communities),
+            "modularity": compute_partition_modularity(G, partition),
         },
         "insights": {
             "top_hub": {
@@ -2869,6 +3013,11 @@ def build_payload(G, clustered_nodes, community_profiles, query):
                 "community_label": top_bridge.get("community_label", "N/A"),
                 "bridge_score": top_bridge.get("bridge_score", 0.0),
                 "cross_community_neighbors": top_bridge.get("cross_community_neighbors", 0),
+            },
+            "top_influence": {
+                "id": top_influence.get("id", "N/A"),
+                "community_label": top_influence.get("community_label", "N/A"),
+                "influence_score": top_influence.get("influence_score", 0.0),
             },
             "largest_community": largest,
             "densest_community": densest,
@@ -2900,35 +3049,74 @@ def main():
     """Parse CLI inputs and generate all Skill E output files."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--graph", required=True)
-    parser.add_argument("--clustered_nodes", required=True)
-    parser.add_argument("--community_profiles", required=True)
+    parser.add_argument(
+        "--clustered_nodes",
+        required=True,
+        help="Path(s) to clustered nodes JSON. Comma-separated if comparing.",
+    )
+    parser.add_argument(
+        "--community_profiles",
+        required=True,
+        help="Path(s) to profiles JSON. Comma-separated if comparing.",
+    )
     parser.add_argument("--query", default="")
     parser.add_argument("--out_dir", required=True)
+    parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="Enable comparison mode in the visualization report",
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     G = nx.read_gml(args.graph)
-    clustered_nodes = load_json(args.clustered_nodes)
-    community_profiles = load_json(args.community_profiles)
+    node_files = split_paths(args.clustered_nodes)
+    profile_files = split_paths(args.community_profiles)
+    if len(node_files) != len(profile_files):
+        raise ValueError(
+            "--clustered_nodes and --community_profiles must contain the same number of paths"
+        )
+    if args.compare and len(node_files) < 2:
+        raise ValueError("--compare requires at least two clustered/profile file pairs")
 
-    payload = build_payload(G, clustered_nodes, community_profiles, args.query)
+    payloads = []
+    for idx, (node_file, profile_file) in enumerate(zip(node_files, profile_files)):
+        algorithm = infer_algorithm_name(node_file, idx)
+        clustered_nodes = load_json(node_file)
+        community_profiles = load_json(profile_file)
+        payload = build_payload(G, clustered_nodes, community_profiles, args.query, algorithm)
+        partition = build_partition(clustered_nodes)
+        influence_by_node = build_influence_lookup(clustered_nodes)
 
-    png_path = out_dir / "network_viz.png"
-    html_path = out_dir / "network_viz.html"
+        if args.compare:
+            slug = output_slug(algorithm, idx)
+            png_path = out_dir / f"viz_{slug}.png"
+            html_path = out_dir / f"viz_{slug}.html"
+        else:
+            png_path = out_dir / "network_viz.png"
+            html_path = out_dir / "network_viz.html"
+
+        payload["outputs"] = {"html": html_path.name, "png": png_path.name}
+        draw_static(G, partition, png_path, influence_by_node, f"{algorithm} Community Network")
+        html_path.write_text(build_dashboard_html(payload), encoding="utf-8")
+        payloads.append(payload)
+
+        print(f"Static graph saved: {png_path}")
+        print(f"Interactive graph saved: {html_path}")
+
+    primary_payload = payloads[0]
+    if args.compare:
+        primary_payload = max(payloads, key=lambda item: item["stats"].get("modularity", 0.0))
+
     report_path = out_dir / "final_report.md"
     report_html_path = out_dir / "final_report.html"
 
-    partition = build_partition(clustered_nodes)
-    draw_static(G, partition, png_path)
-    html_path.write_text(build_dashboard_html(payload), encoding="utf-8")
-    generate_report(payload, report_path)
+    generate_report(primary_payload, report_path, payloads if args.compare else None)
     report_markdown = report_path.read_text(encoding="utf-8")
-    report_html_path.write_text(render_report_html(report_markdown, payload), encoding="utf-8")
+    report_html_path.write_text(render_report_html(report_markdown, primary_payload), encoding="utf-8")
 
-    print(f"Static graph saved: {png_path}")
-    print(f"Interactive graph saved: {html_path}")
     print(f"Report saved: {report_path}")
     print(f"Rendered report saved: {report_html_path}")
 
