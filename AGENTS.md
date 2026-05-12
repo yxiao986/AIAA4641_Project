@@ -2,7 +2,7 @@
 name: music-community-analysis-agent
 description: "An end-to-end SNA agent that scrapes Last.fm data, builds social graphs, compares fan communities, and generates LLM-powered profiles."
 author: yxiao986
-version: 0.2.0
+version: 0.3.0
 tags: [music, social-network-analysis, graph-ml, llm, community-discovery, algorithms]
 skills:
   - data-scraper
@@ -53,7 +53,6 @@ Used to generate human-readable cultural profiles for the detected communities. 
 ## 4. Architecture
 Unlike pure prompt-based agents, this project chooses to retain a complete Python codebase based on the following considerations:
 * **Algorithmic Precision**: Community discovery (like Louvain) and graph modeling involve high-density mathematical computations and large-scale node processing, which exceeds the capabilities of pure text prompts.
-* **Code-Driven Agent**: `agent.py` provides a robust execution engine capable of leveraging professional libraries like NetworkX for precise topological analysis, rather than relying solely on LLM logical deduction.
 * **Scalability**: Each Skill is an independently testable tool. This means you can run any single module in isolation to verify data without needing to launch the entire Agent pipeline every time.
 
 ## 5. Directory Structure
