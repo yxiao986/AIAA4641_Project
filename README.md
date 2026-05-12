@@ -8,28 +8,21 @@ An end-to-end social network analysis agent that mines Last.fm listener data, co
 
 ## Overview
 
-The agent answers queries like:
 
-```
-"Analyze the indie rock community around Radiohead"
-"Find subgroups in the folk listener network"
-```
+By reading the `AGENTS.md` and individual `SKILL.md` manifests, the AI automatically understands the user's intent and selectively executes the necessary Python skills.
 
-It does so by coordinating five independent Skills through a shared data layer, following the same pipeline-over-files architecture described in the project guidance.
-
-```
-User Query
+```text
+🗣️ User Natural Language Query ("Compare Jazz community clustering...")
     │
     ▼
-agent.py  (Orchestrator)
+🤖 AI Assistant (Workbuddy / OpenClaw) reads AGENTS.md & SKILL.md
     │
-    ├─► Skill A · data-scraper             →  raw_users.json + raw_interactions.json
-    ├─► Skill B · community-linker         →  network.gml
-    ├─► Skill C · community-detector       →  clustered_nodes.json
-    ├─► Skill D · community-profiler       →  community_profiles.json
-    └─► Skill E · community-visualization  →  network_viz.html + final_report.html
+    ├── 🔍 Intention 1: Needs Data  ─► Skill A (data-scraper)
+    ├── 🕸️ Intention 2: Build Graph ─► Skill B (community-linker)
+    ├── 🧮 Intention 3: Clustering  ─► Skill C (community-detector)
+    ├── 🧠 Intention 4: Profiling   ─► Skill D (community-profiler)
+    └── 📊 Intention 5: Report      ─► Skill E (community-visualization)
 ```
-
 ---
 
 ## Repository Structure
@@ -37,85 +30,64 @@ agent.py  (Orchestrator)
 ```
 Music_Community_Agent/
 │
-├── agent.py                        # ⭐ Orchestrator — coordinates all five Skills
-├── AGENTS.md                       # StudyClawHub agent registry metadata
+├── AGENTS.md                       # ⭐ Agent Registry Metadata (The "Brain" mapping)
 ├── requirements.txt                # Python dependencies
 ├── README.md                       # This file
 │
-├── shared_data/                    # ⭐ Shared data layer — all inter-skill communication
-│   ├── raw_users.json              # Output of Skill A
-│   ├── raw_interactions.json       # Output of Skill A
-│   ├── network.gml                 # Output of Skill B
-│   ├── clustered_nodes.json        # Output of Skill C
-│   ├── community_profiles.json     # Output of Skill D
-│   ├── network_viz.html            # Output of Skill E
-│   ├── network_viz.png             # Output of Skill E
-│   └── final_report.html           # Output of Skill E
+├── shared_data/                    # ⭐ Shared Data Layer (JSON/GML files passed between Skills)
 │
-└── skills/
-    ├── __init__.py
-    ├── data-scraper/
-    │   ├── SKILL.md                # Registry metadata (name: data-scraper)
-    │   ├── main.py                 # BFS scraper — HetRec offline or Last.fm API online
-    │   └── api_utils.py            # Last.fm REST helpers (online mode)
-    ├── community-linker/
-    │   ├── SKILL.md                # Registry metadata (name: community-linker)
-    │   └── main.py                 # Builds and cleans the NetworkX graph → GML
-    ├── community-detector/
-    │   ├── SKILL.md                # Registry metadata (name: community-detector)
-    │   └── main.py                 # Louvain / Girvan-Newman community detection
-    ├── community-profiler/
-    │   ├── SKILL.md                # Registry metadata (name: community-profiler)
-    │   └── main.py                 # LLM-powered (or heuristic) semantic profiling
-    └── community-visualization/
-        ├── SKILL.md                # Registry metadata (name: community-visualization)
-        └── main.py                 # Interactive HTML dashboard + static PNG + report
+└── skills/                         # Implementation Layer
+    ├── data-scraper/               # Hybrid BFS scraper (Live API & Offline Dataset)
+    ├── community-linker/           # NetworkX graph builder
+    ├── community-detector/         # Louvain / Girvan-Newman & PageRank algorithms
+    ├── community-profiler/         # LLM-based semantic cultural profiling
+    └── community-visualization/    # PyVis / HTML report generation
 ```
 
 ---
 
 ## Quick Start
 
-### 1. Install dependencies
+Since this is an AI-Native Agent, you do not run a central Python script. You interact with it via a compatible terminal AI assistant (like Workbuddy) using the StudyClawHub registry.
 
-```bash
+### Step 1: Environment Setup
+Ensure all dependencies are installed:
+
+```Bash
 pip install -r requirements.txt
 ```
+### Step 2: Configure API Keys (Terminal Environment)
 
-### 2. Run offline mode with HetRec dataset
+Our agent requires keys for live data fetching and LLM profiling. Set them in your terminal before waking up the AI assistant:
 
-This mode uses the local HetRec 2011 Last.fm-2K dataset and does not require a Last.fm API key.
-Make sure the dataset exists at: `data/hetrec2011-lastfm-2k/`   
-Then run:
-```bash
-python agent.py --source hetrec --query "Analyze the indie rock community" --seed_artist "Radiohead" 
+Mac/Linux:
 
-# Optional parameters:     
-
-python agent.py --source hetrec --query "Analyze the indie rock community" --seed_artist "Radiohead" --max_users 50 --algorithm louvain
-  ```
-`--max_users` defaults to 200, and `--algorithm` defaults to louvain.  
-
-### 3. Run online mode with Last.fm API  
-
-Online mode uses the live Last.fm API. It must start from a known Last.fm username, not an artist name.   
-
-```bash
-$env:LASTFM_API_KEY="your_key_here"
-
-python agent.py --source api --query "Analyze the listener network around RJ" --seed_user "RJ"     
-
-# Optional:  
-python agent.py --source api --query "Analyze the listener network around RJ" --seed_user "RJ" --max_users 50 --algorithm louvain    
-```  
-
-### 4. Reuse existing scraped data
-
-If `shared_data/raw_users.json` and `shared_data/raw_interactions.json` already exist, you can skip Skill A:  
-
-```bash
-
+```Bash
+export LASTFM_API_KEY="your_lastfm_key"
+export ANTHROPIC_API_KEY="your_claude_key"
 ```
+Windows (PowerShell):
+
+```PowerShell
+$env:LASTFM_API_KEY="your_lastfm_key"
+(Note: If you lack a Last.fm key, the agent will autonomously decide to use the offline HetRec 2011 dataset).
+```
+### Step 3: Wake Up the Agent
+In your AI terminal assistant, install the agent from the registry (assuming StudyClawHub integration):
+
+```Plaintext
+/sch-install music-community-analysis-agent
+```
+### Step 4: Just Ask!
+Now, give it natural language commands. The AI will parse your request and run the specific skills needed:
+
+Full Pipeline: "Analyze the folk community around Bob Dylan."
+
+Compare Algorithms: "Run both Louvain and Girvan-Newman clustering on the current network and compare the modularity."
+
+Find Influencers: "Calculate the PageRank for the existing graph and tell me the top influencers."
+
+Skip Scrape (Re-run): "Generate a new visualization report based on the existing shared_data without re-scraping."
 
 ### 5. Run any Skill in isolation
 
