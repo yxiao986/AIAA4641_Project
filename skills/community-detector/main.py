@@ -48,7 +48,7 @@ def detect_louvain(G: nx.Graph) -> dict:
     if not HAS_LOUVAIN:
         raise ImportError("python-louvain not installed. Install with: pip install python-louvain")
     
-    log("  🔄 Running Louvain algorithm...")
+    log("  Running Louvain algorithm...")
     partition = best_partition(G, weight="weight")
     return partition
 
@@ -65,7 +65,7 @@ def detect_girvan_newman(G: nx.Graph, k: int = 5) -> dict:
     Returns:
         Dictionary mapping node → community_id
     """
-    log(f"  🔄 Running Girvan-Newman algorithm (target {k} communities)...")
+    log(f"  Running Girvan-Newman algorithm (target {k} communities)...")
     
     # girvan_newman is a generator that yields communities at each step
     # We take the first partition with >= k communities
@@ -78,7 +78,7 @@ def detect_girvan_newman(G: nx.Graph, k: int = 5) -> dict:
             break
     
     if communities is None:
-        log(f"    ⚠️  Could not reach {k} communities, using final partition")
+        log(f"    Could not reach {k} communities, using final partition")
         communities = [set(G.nodes())]  # fallback: single community
     
     # Convert generator of sets to {node: community_id}
@@ -133,33 +133,33 @@ def main():
 
     graph_path = Path(args.graph)
     if not graph_path.exists():
-        log(f"❌ ERROR: Graph file not found: {graph_path}")
+        log(f"ERROR: Graph file not found: {graph_path}")
         return 1
 
     # ── Load graph ───────────────────────────────────────────────────────────
-    log(f"📖 Loading graph from {graph_path.name}...")
+    log(f"Loading graph from {graph_path.name}...")
     try:
         G = nx.read_gml(str(graph_path))
     except Exception as e:
-        log(f"❌ ERROR: Failed to load graph: {e}")
+        log(f"ERROR: Failed to load graph: {e}")
         return 1
 
     n_nodes = G.number_of_nodes()
     n_edges = G.number_of_edges()
-    log(f"  ✅ Loaded: {n_nodes} nodes, {n_edges} edges")
+    log(f"  Loaded: {n_nodes} nodes, {n_edges} edges")
     
     # Check connectivity
     if nx.is_connected(G):
-        log(f"  ✅ Graph is connected")
+        log(f"  Graph is connected")
     else:
         n_components = nx.number_connected_components(G)
         largest_cc = max(nx.connected_components(G), key=len)
-        log(f"  ⚠️  Graph has {n_components} connected components")
+        log(f"  Graph has {n_components} connected components")
         log(f"     Largest component: {len(largest_cc)} nodes")
 
     # ── Detect communities ───────────────────────────────────────────────────
     log("")
-    log(f"🔍 Running community detection...")
+    log(f"Running community detection...")
     
     try:
         if args.algorithm == "louvain":
@@ -167,25 +167,25 @@ def main():
         else:  # girvan_newman
             partition = detect_girvan_newman(G, k=5)
     except Exception as e:
-        log(f"❌ ERROR: Community detection failed: {e}")
+        log(f"ERROR: Community detection failed: {e}")
         return 1
 
     n_communities = len(set(partition.values()))
-    log(f"  ✅ Detected {n_communities} communities")
+    log(f"  Detected {n_communities} communities")
 
     # ── Compute quality metrics ──────────────────────────────────────────────
     log("")
-    log(f"📊 Computing community quality metrics...")
+    log(f"Computing community quality metrics...")
     
     try:
         mod_score = compute_modularity(G, partition)
-        log(f"  ✅ Modularity score: {mod_score:.4f}")
+        log(f"  Modularity score: {mod_score:.4f}")
         if mod_score < 0.3:
-            log(f"     ⚠️  Low modularity — communities may be weak")
+            log(f"     Low modularity — communities may be weak")
         elif mod_score > 0.7:
-            log(f"     ✨ High modularity — strong community structure")
+            log(f"     High modularity — strong community structure")
     except Exception as e:
-        log(f"  ⚠️  Could not compute modularity: {e}")
+        log(f"  Could not compute modularity: {e}")
         mod_score = None
 
     # Community size statistics
@@ -201,18 +201,27 @@ def main():
 
     # ── Compute Influence (PageRank) ─────────────────────────────────────────
     log("")
-    log(f"🌟 Computing node influence (PageRank)...")
+    log(f"Computing node influence (PageRank)...")
     try:
         # PageRank considers the edge weights by default if 'weight' attribute exists
         pagerank_scores = nx.pagerank(G, weight='weight')
-        log(f"  ✅ Influence scores computed for {len(pagerank_scores)} nodes")
+        log(f"  Influence scores computed for {len(pagerank_scores)} nodes")
     except Exception as e:
-        log(f"  ⚠️ Could not compute PageRank: {e}")
+        log(f"  Could not compute PageRank: {e}")
         pagerank_scores = {}
+
+    # ── Compute Influence (Betweenness) ──────────────────────────────────────
+    log(f"Computing betweenness centrality (Bridge users)...")
+    try:
+        betweenness_scores = nx.betweenness_centrality(G, weight='weight')
+        log(f"  Betweenness scores computed for {len(betweenness_scores)} nodes")
+    except Exception as e:
+        log(f"  Could not compute Betweenness: {e}")
+        betweenness_scores = {}
 
     # ── Build output JSON ────────────────────────────────────────────────────
     log("")
-    log(f"🔨 Building output JSON...")
+    log(f"Building output JSON...")
     
     result = []
     for node, data in G.nodes(data=True):
@@ -245,29 +254,30 @@ def main():
             "loved_tracks_count": int(data.get("loved_tracks_count", 0)),
             "recent_track_count": int(data.get("recent_track_count", 0)),
             "total_playcount": total_playcount,
-            "influence_score": pagerank_scores.get(node, 0.0)  # <-- 添加了影响力分数
+            "influence_score": pagerank_scores.get(node, 0.0),
+            "betweenness_score": betweenness_scores.get(node, 0.0)
         })
 
-    log(f"  ✅ Prepared {len(result)} nodes with community assignments and influence scores")
+    log(f"  Prepared {len(result)} nodes with community assignments and influence scores")
 
     # ── Write output ─────────────────────────────────────────────────────────
     log("")
-    log(f"💾 Writing output to {args.out_file}...")
+    log(f"Writing output to {args.out_file}...")
     
     try:
         out_path = Path(args.out_file)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
-        log(f"  ✅ Output saved: {out_path}")
+        log(f"  Output saved: {out_path}")
     except Exception as e:
-        log(f"❌ ERROR: Failed to write output: {e}")
+        log(f"ERROR: Failed to write output: {e}")
         return 1
 
     # ── Summary ──────────────────────────────────────────────────────────────
     log("")
     log("=" * 60)
-    log(f"✨ Skill C completed successfully")
+    log(f"Skill C completed successfully")
     log(f"   Communities detected: {n_communities}")
     if mod_score is not None:
         log(f"   Modularity score:     {mod_score:.4f}")
