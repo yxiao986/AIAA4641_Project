@@ -2,7 +2,7 @@
 name: community-detector
 description: "Detect communities using Louvain/Girvan-Newman and calculate PageRank. Supports single-algorithm execution or dual-algorithm comparison."
 author: yxiao986
-version: 0.3.0
+version: 0.4.0
 tags:
   - graph
   - community-detection
