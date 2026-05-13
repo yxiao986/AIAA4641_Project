@@ -391,6 +391,42 @@ def call_openai(prompt: str, model: str, max_tokens: int = 256) -> dict:
     raw_text = response.choices[0].message.content.strip()
     return extract_json_object(raw_text)
 
+def call_deepseek(prompt: str, model: str, max_tokens: int = 256) -> dict:
+    """
+    Call DeepSeek API through OpenAI-compatible interface.
+
+    Requires:
+    pip install openai
+    export DEEPSEEK_API_KEY=your_key
+    """
+    from openai import OpenAI
+
+    client = OpenAI(
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        base_url="https://api.deepseek.com",
+    )
+
+    response = client.chat.completions.create(
+        model=model,
+        temperature=0.2,
+        max_tokens=max_tokens,
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a music community profiling assistant. Always return valid JSON only.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+    )
+
+    raw_text = response.choices[0].message.content.strip()
+
+    if getattr(response, "usage", None):
+        input_tokens = getattr(response.usage, "prompt_tokens", 0)
+        output_tokens = getattr(response.usage, "completion_tokens", 0)
+        print(f"[TOKEN USAGE] input={input_tokens}, output={output_tokens}, total={input_tokens + output_tokens}")
+
+    return extract_json_object(raw_text)
 
 def heuristic_profile(community_id: str, agg: dict) -> dict:
     """
@@ -473,6 +509,9 @@ def profile_community(
 
     if provider == "openai":
         return call_openai(prompt, model=model, max_tokens=max_tokens)
+    
+    if provider == "deepseek":
+        return call_deepseek(prompt, model=model, max_tokens=max_tokens)
 
     raise ValueError(f"Unsupported provider: {provider}")
 
@@ -505,7 +544,7 @@ def main():
 
     parser.add_argument(
         "--provider",
-        choices=["anthropic", "openai", "heuristic"],
+        choices=["anthropic", "openai", "deepseek", "heuristic"],
         default="anthropic",
         help="LLM provider. Use heuristic to run without API.",
     )
@@ -545,12 +584,18 @@ def main():
         print("OPENAI_API_KEY not found. Falling back to heuristic.")
         args.provider = "heuristic"
         
+    if args.provider == "deepseek" and not os.getenv("DEEPSEEK_API_KEY"):
+        print("DEEPSEEK_API_KEY not found. Falling back to heuristic.")
+        args.provider = "heuristic"
+        
     # Default models
     if args.model is None:
         if args.provider == "anthropic":
             args.model = "claude-sonnet-4-20250514"
         elif args.provider == "openai":
             args.model = "gpt-4o-mini"
+        elif args.provider == "deepseek":
+            args.model = "deepseek-v4-pro"
         else:
             args.model = "heuristic"
 
