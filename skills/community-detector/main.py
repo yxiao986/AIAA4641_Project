@@ -225,13 +225,26 @@ def main():
         # Remove empty strings
         top_artists = [a for a in top_artists if a]
         top_tags = [t for t in top_tags if t]
+
+        username = str(data.get("label", node))
+        playcount = int(data.get("playcount", 0))
+        total_playcount = int(data.get("total_playcount", playcount))
         
         result.append({
-            "username": node,
+            "username": username,
             "community_id": community_id,
             "top_artists": top_artists,
             "top_tags": top_tags,
-            "playcount": int(data.get("playcount", 0)),
+            "playcount": playcount,
+            "country": str(data.get("country", "Unknown")),
+            "registered_year": int(data.get("registered_year", 0)),
+            "age": int(data.get("age", 0)),
+            "gender": str(data.get("gender", "unknown")),
+            "subscriber": bool(data.get("subscriber", 0)),
+            "artist_count": int(data.get("artist_count", 0)),
+            "loved_tracks_count": int(data.get("loved_tracks_count", 0)),
+            "recent_track_count": int(data.get("recent_track_count", 0)),
+            "total_playcount": total_playcount,
             "influence_score": pagerank_scores.get(node, 0.0)  # <-- 添加了影响力分数
         })
 
