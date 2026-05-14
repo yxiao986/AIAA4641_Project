@@ -2,7 +2,7 @@
 name: community-visualization
 description: "Build interactive music community dashboards, static PNGs, and rendered reports from a network graph. Supports single-algorithm visualization and Louvain vs Girvan-Newman comparison mode."
 author: Yue Yu
-version: 1.0.0
+version: 3.0.0
 tags:
   - visualization
   - dashboard
@@ -32,7 +32,9 @@ For a single-algorithm run, confirm that the following files exist before runnin
 
 - `shared_data/network.gml`
 - `shared_data/clustered_nodes.json`
-- `shared_data/community_profiles.json`
+- `shared_data/community-profiles.json`
+
+If the upstream run uses the older underscore name, `shared_data/community_profiles.json` is also accepted when passed explicitly to `--community_profiles`.
 
 For comparison mode, confirm that each clustered-node file has a matching community-profile file. The standard compare-mode inputs are:
 
@@ -43,6 +45,18 @@ For comparison mode, confirm that each clustered-node file has a matching commun
 
 The clustered-node JSON should include `username`, `community_id`, `top_artists`, `top_tags`, `playcount`, and preferably `influence_score`. If `influence_score` is present, the visualization uses it to scale node prominence and report the top influence user.
 
+The community profile JSON may include the newer behavior-analysis fields produced by Skill D:
+
+- `behavior_summary`
+- `behavior_metrics`
+- `relative_behavior`
+- `top_countries`
+- `gender_distribution`
+- `registered_year_distribution`
+- `top_influencers`
+- `high_activity_users`
+- `socially_connected_users`
+
 If any file is missing, stop and tell the user which upstream skill needs to be run first.
 
 ### Step 2: Run the Community Visualization
@@ -50,16 +64,18 @@ If any file is missing, stop and tell the user which upstream skill needs to be 
 Run the single-algorithm visualization pipeline with:
 
 ```bash
-python skills/community-visualization/main.py --graph shared_data/network.gml --clustered_nodes shared_data/clustered_nodes.json --community_profiles shared_data/community_profiles.json --query "Analyze the indie rock community" --out_dir shared_data/
+python skills/community-visualization/main.py --graph shared_data/network.gml --clustered_nodes shared_data/clustered_nodes.json --community_profiles shared_data/community-profiles.json --query "Analyze the indie rock community" --out_dir shared_data/ --algorithm Louvain
 ```
+
+If `--algorithm` is omitted in single-algorithm mode, the dashboard and report label default to `Louvain`.
 
 For Louvain vs Girvan-Newman comparison, pass comma-separated clustered/profile paths and enable `--compare`:
 
 ```bash
-python skills/community-visualization/main.py --graph shared_data/network.gml --clustered_nodes shared_data/clustered_nodes_louvain.json,shared_data/clustered_nodes_gn.json --community_profiles shared_data/profiles_louvain.json,shared_data/profiles_gn.json --query "Compare Louvain and Girvan-Newman music communities" --out_dir shared_data/ --compare
+python skills/community-visualization/main.py --graph shared_data/network.gml --clustered_nodes shared_data/clustered_nodes_louvain.json,shared_data/clustered_nodes_gn.json --community_profiles shared_data/profiles_louvain.json,shared_data/profiles_gn.json --query "Compare Louvain and Girvan-Newman music communities" --out_dir shared_data/ --compare --algorithm Louvain,Girvan-Newman
 ```
 
-Do not put spaces around the commas in the comma-separated path lists.
+Do not put spaces around the commas in the comma-separated path lists. In comparison mode, `--algorithm` can be omitted to infer names from filenames, or set to one comma-separated label per clustered/profile pair.
 
 ### Step 3: What the pipeline computes
 
@@ -69,6 +85,7 @@ For each algorithm payload, the skill computes and embeds:
 - Partition quality: community count and weighted modularity.
 - Node metrics: degree, closeness, PageRank, local clustering coefficient, betweenness, influence score, importance, bridge score, cross-community neighbor count, and cross fraction.
 - Community summaries: size, internal density, average degree, top artists, top tags, representative top nodes, bridge nodes, related communities, and sample members.
+- Behavioral community summaries when available: behavior summary, activity/social/diversity levels, average playcount, artist coverage, loved-track activity, friend count, subscriber rate, average influence, countries, registration years, top influencers, and high-activity users.
 - Recommendation data: similar listeners, cross-community bridge recommendations, and strongest graph neighbors.
 
 In comparison mode, the final report starts with an algorithm comparison table and then writes separate detailed sections for each algorithm, rather than only expanding the best-modularity result.
@@ -103,6 +120,7 @@ In single mode, the report contains:
 - `Network Overview`
 - `Global Insights`
 - `Community Snapshot`
+- `Behavior Snapshot` when behavior fields are present
 - `Top Hubs`
 - `Bridge Nodes`
 - `Visualization Outputs`
@@ -114,16 +132,19 @@ In comparison mode, the report contains:
 - `<Algorithm> Network Overview`
 - `<Algorithm> Global Insights`
 - `<Algorithm> Community Snapshot`
+- `<Algorithm> Behavior Snapshot` when behavior fields are present
 - `<Algorithm> Top Hubs`
 - `<Algorithm> Bridge Nodes`
 - `Visualization Outputs`
 
 ## Notes
 
-- Algorithm names are inferred from clustered-node filenames. Filenames containing `louvain` are labeled `Louvain`; filenames containing `girvan`, `_gn`, or `-gn` are labeled `Girvan-Newman`; otherwise they are labeled `Algorithm 1`, `Algorithm 2`, and so on.
+- In single-algorithm mode, the default label is `Louvain`; pass `--algorithm <name>` to override it.
+- In comparison mode, algorithm names are inferred from clustered-node filenames unless `--algorithm` supplies comma-separated labels. Filenames containing `louvain` are labeled `Louvain`; filenames containing `girvan`, `_gn`, or `-gn` are labeled `Girvan-Newman`; otherwise they are labeled `Algorithm 1`, `Algorithm 2`, and so on.
 - In comparison mode, the output file suffixes are similarly inferred: `viz_louvain.*`, `viz_gn.*`, or fallback names such as `viz_algo1.*`.
 - `modularity` is computed from the graph and the community partition with `weight="weight"`.
 - `influence_score` is read from Skill C output. It is not recomputed in this skill, but it is used in node sizing, tooltips, and top influence reporting.
+- Behavior fields are read from Skill D output. They are shown in the community detail panel and in the report's behavior snapshot. Missing behavior fields are ignored so older profile files still work.
 
 ## Error handling
 

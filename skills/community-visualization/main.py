@@ -63,6 +63,72 @@ def clean_list(value) -> list[str]:
     return out
 
 
+def clean_distribution(value, limit: int = 5) -> list[dict]:
+    """Normalize profile distribution lists for dashboard display."""
+    if not isinstance(value, list):
+        return []
+    out = []
+    for item in value[:limit]:
+        if not isinstance(item, dict):
+            continue
+        name = clean_text(item.get("name", ""))
+        if not name:
+            continue
+        out.append({"name": name, "count": safe_int(item.get("count", 0))})
+    return out
+
+
+def clean_user_rankings(value, limit: int = 5) -> list[dict]:
+    """Normalize ranked user lists from behavioral community profiles."""
+    if not isinstance(value, list):
+        return []
+    out = []
+    for item in value[:limit]:
+        if not isinstance(item, dict):
+            continue
+        username = clean_text(item.get("username", ""))
+        if not username:
+            continue
+        out.append(
+            {
+                "username": username,
+                "influence_score": round(safe_float(item.get("influence_score", 0.0)), 6),
+                "betweenness_score": round(safe_float(item.get("betweenness_score", 0.0)), 6),
+                "playcount": safe_int(item.get("playcount", 0)),
+                "friend_count": safe_int(item.get("friend_count", 0)),
+            }
+        )
+    return out
+
+
+def clean_behavior_metrics(value) -> dict:
+    """Keep numeric behavior metrics with stable numeric conversion."""
+    if not isinstance(value, dict):
+        return {}
+    out = {}
+    for key, item in value.items():
+        if isinstance(item, bool):
+            out[key] = item
+        elif isinstance(item, (int, float)):
+            out[key] = round(float(item), 6)
+    return out
+
+
+def clean_relative_behavior(value) -> dict:
+    """Normalize the relative_behavior profile block."""
+    if not isinstance(value, dict):
+        return {}
+    out = {}
+    for key, item in value.items():
+        if isinstance(item, list):
+            out[key] = [clean_text(v) for v in item if clean_text(v)]
+        else:
+            text = clean_text(item)
+            if text:
+                out[key] = text
+    return out
+
+
 def safe_int(value, default=0):
     """Safely convert a value to an integer, returning a default if conversion fails."""
     try:
@@ -89,14 +155,14 @@ def split_paths(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def infer_algorithm_name(path: str | Path, index: int = 0) -> str:
+def infer_algorithm_name(path: str | Path, index: int = 0, fallback: str | None = None) -> str:
     """Infer a readable clustering algorithm label from an input filename."""
     text = str(path).lower()
     if "louvain" in text:
         return "Louvain"
     if "girvan" in text or "_gn" in text or "-gn" in text:
         return "Girvan-Newman"
-    return f"Algorithm {index + 1}"
+    return fallback or f"Algorithm {index + 1}"
 
 
 def output_slug(algorithm: str, index: int = 0) -> str:
@@ -418,8 +484,18 @@ def build_community_models(
             artist_counter.update(artists_by_node.get(member, []))
             tag_counter.update(tags_by_node.get(member, []))
 
-        label = clean_text(profiles.get(cid, {}).get("label", f"Community {cid}"))
-        description = clean_text(profiles.get(cid, {}).get("description", ""))
+        profile = profiles.get(cid, {})
+        label = clean_text(profile.get("label", f"Community {cid}"))
+        description = clean_text(profile.get("description", ""))
+        behavior_summary = clean_text(profile.get("behavior_summary", ""))
+        behavior_metrics = clean_behavior_metrics(profile.get("behavior_metrics", {}))
+        relative_behavior = clean_relative_behavior(profile.get("relative_behavior", {}))
+        top_countries = clean_distribution(profile.get("top_countries", []))
+        gender_distribution = clean_distribution(profile.get("gender_distribution", []))
+        registered_year_distribution = clean_distribution(profile.get("registered_year_distribution", []))
+        top_influencers = clean_user_rankings(profile.get("top_influencers", []))
+        high_activity_users = clean_user_rankings(profile.get("high_activity_users", []))
+        socially_connected_users = clean_user_rankings(profile.get("socially_connected_users", []))
         top_artists = [name for name, _ in artist_counter.most_common(10)]
         top_tags = [name for name, _ in tag_counter.most_common(10)]
 
@@ -485,6 +561,15 @@ def build_community_models(
                 "id": cid,
                 "label": label,
                 "description": description,
+                "behavior_summary": behavior_summary,
+                "behavior_metrics": behavior_metrics,
+                "relative_behavior": relative_behavior,
+                "top_countries": top_countries,
+                "gender_distribution": gender_distribution,
+                "registered_year_distribution": registered_year_distribution,
+                "top_influencers": top_influencers,
+                "high_activity_users": high_activity_users,
+                "socially_connected_users": socially_connected_users,
                 "size": size,
                 "density": round(density, 6),
                 "avg_degree": round(avg_degree, 4),
@@ -609,6 +694,7 @@ def build_node_records(
                     clean_text(node),
                     clean_text(profile.get("label", "")),
                     clean_text(profile.get("description", "")),
+                    clean_text(profile.get("behavior_summary", "")),
                     " ".join(artists_by_node.get(node, [])),
                     " ".join(tags_by_node.get(node, [])),
                 ]
@@ -1464,17 +1550,9 @@ def build_dashboard_html(data):
         <aside class="panel sidebar">
           <div class="panel-header">
             <h2 class="panel-title">Explore</h2>
-            <p class="panel-subtitle">Search listeners, filter communities, and surface similar users.</p>
+            <p class="panel-subtitle">Filter communities and surface influential listeners.</p>
           </div>
           <div class="panel-body control-grid">
-            <div class="field">
-              <label for="searchInput">Search</label>
-              <div class="search-row">
-                <input class="input" id="searchInput" placeholder="username, artist, tag, community..." />
-                <button class="small-btn" id="searchClearBtn" type="button">Clear</button>
-              </div>
-            </div>
-
             <div class="field">
               <label for="communitySelect">Community filter</label>
               <select class="select" id="communitySelect"></select>
@@ -1493,7 +1571,7 @@ def build_dashboard_html(data):
             <div class="divider"></div>
 
             <div>
-              <div class="section-title"><span>Search results</span><span id="searchCount">0</span></div>
+              <div class="section-title"><span>Top listeners</span><span id="searchCount">0</span></div>
               <div class="results" id="searchResults"></div>
             </div>
 
@@ -1633,8 +1711,6 @@ def build_dashboard_html(data):
     }});
 
     const els = {{
-      searchInput: document.getElementById("searchInput"),
-      searchClearBtn: document.getElementById("searchClearBtn"),
       searchResults: document.getElementById("searchResults"),
       searchCount: document.getElementById("searchCount"),
       communitySelect: document.getElementById("communitySelect"),
@@ -1676,6 +1752,61 @@ def build_dashboard_html(data):
 
     function joinChips(items, cls = "chip soft") {{
       return (items || []).map(item => `<span class="${{cls}}">${{escapeHtml(item)}}</span>`).join("");
+    }}
+
+    function fmtNumber(value, digits = 0) {{
+      const num = Number(value || 0);
+      return num.toLocaleString(undefined, {{ maximumFractionDigits: digits, minimumFractionDigits: digits }});
+    }}
+
+    function titleCase(text) {{
+      return String(text || "")
+        .replace(/_/g, " ")
+        .replace(/\\b\\w/g, char => char.toUpperCase());
+    }}
+
+    function metricValue(value) {{
+      const num = Number(value || 0);
+      if (Math.abs(num) >= 1000) return num.toLocaleString(undefined, {{ maximumFractionDigits: 0 }});
+      if (Math.abs(num) >= 10) return num.toLocaleString(undefined, {{ maximumFractionDigits: 1 }});
+      return num.toLocaleString(undefined, {{ maximumFractionDigits: 3 }});
+    }}
+
+    function behaviorMetricGrid(metrics) {{
+      const preferred = [
+        ["avg_playcount", "Avg Playcount"],
+        ["avg_artist_count", "Avg Artists"],
+        ["avg_loved_tracks_count", "Avg Loved Tracks"],
+        ["avg_friend_count", "Avg Friends"],
+        ["subscriber_rate", "Subscriber Rate"],
+        ["avg_influence_score", "Avg Influence"],
+      ];
+      return preferred
+        .filter(([key]) => metrics && Object.prototype.hasOwnProperty.call(metrics, key))
+        .map(([key, label]) => `<div class="mini-stat"><span>${{escapeHtml(label)}}</span><strong>${{key === "subscriber_rate" ? percent(metrics[key]) : metricValue(metrics[key])}}</strong></div>`)
+        .join("");
+    }}
+
+    function distributionList(items) {{
+      if (!items || !items.length) return '<span class="muted">No distribution data</span>';
+      return items.map(item => `<span class="stat-chip">${{escapeHtml(item.name)}} <strong>${{item.count}}</strong></span>`).join("");
+    }}
+
+    function userRankingList(items, mode = "influence") {{
+      if (!items || !items.length) return '<div class="empty-state">No ranked users available.</div>';
+      return `<div class="list">${{items.map(item => {{
+        const score = mode === "activity" ? fmtNumber(item.playcount, 0) : item.influence_score.toFixed(4);
+        const detail = mode === "activity"
+          ? `influence ${{item.influence_score.toFixed(4)}} · friends ${{item.friend_count}}`
+          : `playcount ${{fmtNumber(item.playcount, 0)}} · friends ${{item.friend_count}}`;
+        return `
+          <div class="list-item">
+            <button type="button" data-node="${{escapeHtml(item.username)}}">
+              <div class="title"><span>${{escapeHtml(item.username)}}</span><span class="score">${{score}}</span></div>
+              <div class="muted">${{escapeHtml(detail)}}</div>
+            </button>
+          </div>`;
+      }}).join("")}}</div>`;
     }}
 
     function listMarkup(items, limit = 6) {{
@@ -1840,8 +1971,15 @@ def build_dashboard_html(data):
     function renderSearchResults(term) {{
       els.searchResults.innerHTML = "";
       if (!term.trim()) {{
-        els.searchCount.textContent = "0";
+        const topNodes = sortedNodesByImportance().slice(0, 12);
+        els.searchCount.textContent = String(topNodes.length);
         state.searchMatches = new Set();
+        els.searchResults.innerHTML = topNodes.map(node => `
+          <button class="result" type="button" data-node="${{escapeHtml(node.id)}}">
+            <strong>${{escapeHtml(node.label)}}</strong>
+            <span>${{escapeHtml(node.community_label)}} · playcount ${{Number(node.playcount).toLocaleString()}} · degree ${{node.degree}}</span>
+            <span>${{escapeHtml((node.top_artists || []).slice(0, 3).join(" • "))}}</span>
+          </button>`).join("");
         refreshGraph(false);
         return;
       }}
@@ -2027,6 +2165,8 @@ def build_dashboard_html(data):
       const related = selectedCommunity.related_communities || [];
       const topNodes = selectedCommunity.top_nodes || [];
       const bridgeNodes = selectedCommunity.bridge_nodes || [];
+      const behaviorMetrics = selectedCommunity.behavior_metrics || {{}};
+      const relativeBehavior = selectedCommunity.relative_behavior || {{}};
       els.communityPanel.innerHTML = `
         <div class="detail-head">
           <h3>${{escapeHtml(selectedCommunity.label)}}</h3>
@@ -2040,6 +2180,29 @@ def build_dashboard_html(data):
             <div class="mini-stat"><span>Related</span><strong>${{related.length}}</strong></div>
           </div>
 
+          ${{selectedCommunity.behavior_summary ? `
+            <div class="section-card">
+              <div class="section-label">Behavior summary</div>
+              <p class="muted">${{escapeHtml(selectedCommunity.behavior_summary)}}</p>
+            </div>` : ""}}
+
+          ${{Object.keys(behaviorMetrics).length ? `
+            <div class="section-card">
+              <div class="section-label">Behavior metrics</div>
+              <div class="stats-grid">
+                ${{behaviorMetricGrid(behaviorMetrics)}}
+              </div>
+            </div>` : ""}}
+
+          ${{Object.keys(relativeBehavior).length ? `
+            <div class="section-card compact">
+              <div class="section-label">Relative behavior</div>
+              <div class="pill-row">
+                ${{["activity_level", "social_level", "diversity_level", "recent_activity_level", "influence_concentration"].map(key => relativeBehavior[key] ? `<span class="stat-chip">${{escapeHtml(titleCase(key))}} <strong>${{escapeHtml(relativeBehavior[key])}}</strong></span>` : "").join("")}}
+              </div>
+              ${{relativeBehavior.behavior_pattern ? `<div class="tiny-note">${{escapeHtml(relativeBehavior.behavior_pattern)}}</div>` : ""}}
+            </div>` : ""}}
+
           <div class="section-card">
             <div class="section-label">Top artists</div>
             <div class="chip-row">${{joinChips(selectedCommunity.top_artists || []) || '<span class="muted">No artist data</span>'}}</div>
@@ -2049,6 +2212,30 @@ def build_dashboard_html(data):
             <div class="section-label">Top tags</div>
             <div class="chip-row">${{joinChips(selectedCommunity.top_tags || []) || '<span class="muted">No tag data</span>'}}</div>
           </div>
+
+          ${{selectedCommunity.top_countries && selectedCommunity.top_countries.length ? `
+            <div class="section-card">
+              <div class="section-label">Top countries</div>
+              <div class="chip-row">${{distributionList(selectedCommunity.top_countries)}}</div>
+            </div>` : ""}}
+
+          ${{selectedCommunity.registered_year_distribution && selectedCommunity.registered_year_distribution.length ? `
+            <div class="section-card">
+              <div class="section-label">Registration years</div>
+              <div class="chip-row">${{distributionList(selectedCommunity.registered_year_distribution.slice(0, 6))}}</div>
+            </div>` : ""}}
+
+          ${{selectedCommunity.top_influencers && selectedCommunity.top_influencers.length ? `
+            <div class="section-card">
+              <div class="section-label">Top influencers</div>
+              ${{userRankingList(selectedCommunity.top_influencers, "influence")}}
+            </div>` : ""}}
+
+          ${{selectedCommunity.high_activity_users && selectedCommunity.high_activity_users.length ? `
+            <div class="section-card">
+              <div class="section-label">High-activity users</div>
+              ${{userRankingList(selectedCommunity.high_activity_users, "activity")}}
+            </div>` : ""}}
 
           <div class="section-card">
             <div class="section-label">Best entry nodes</div>
@@ -2118,7 +2305,6 @@ def build_dashboard_html(data):
       state.focusMode = false;
       state.searchTerm = "";
       state.searchMatches = new Set();
-      els.searchInput.value = "";
       setStatus("Reset view");
       renderSearchResults("");
       renderAllPanels();
@@ -2167,19 +2353,6 @@ def build_dashboard_html(data):
     }}
 
     function installEventHandlers() {{
-      els.searchInput.addEventListener("input", (event) => {{
-        state.searchTerm = event.target.value;
-        renderSearchResults(state.searchTerm);
-        setStatus(state.searchTerm.trim() ? `Searching for "${{state.searchTerm.trim()}}"` : "Search cleared");
-      }});
-
-      els.searchClearBtn.addEventListener("click", () => {{
-        state.searchTerm = "";
-        els.searchInput.value = "";
-        renderSearchResults("");
-        setStatus("Search cleared");
-      }});
-
       els.communitySelect.addEventListener("change", (event) => {{
         const value = event.target.value;
         state.selectedNode = null;
@@ -2222,15 +2395,14 @@ def build_dashboard_html(data):
         state.minWeight = 1;
         state.focusMode = false;
         state.bridgeMode = true;
-        els.searchInput.value = "";
         els.searchCount.textContent = "0";
-        els.searchResults.innerHTML = "";
         els.communitySelect.value = "all";
         els.weightSlider.value = "1";
         els.weightValue.textContent = "1";
         els.focusModeToggle.checked = false;
         els.bridgeModeToggle.checked = true;
         state.searchMatches = new Set();
+        renderSearchResults("");
         renderCommunityList();
         renderCommunityPanel();
         setStatus("Reset view");
@@ -2517,6 +2689,34 @@ def append_payload_report_section(lines, payload, heading_prefix=""):
             f"| {community['label']} | {community['size']} | {community['density']:.3f} | "
             f"{community['avg_degree']:.2f} | {', '.join(community.get('top_artists', [])[:4])} |"
         )
+
+    behavior_communities = [
+        c for c in communities
+        if c.get("behavior_summary") or c.get("behavior_metrics") or c.get("relative_behavior")
+    ]
+    if behavior_communities:
+        lines.extend(
+            [
+                "",
+                f"## {prefix}Behavior Snapshot",
+                "",
+                "| Community | Activity | Social | Diversity | Avg playcount | Avg friends | Avg influence | Behavior summary |",
+                "| --- | --- | --- | --- | ---: | ---: | ---: | --- |",
+            ]
+        )
+        for community in sorted(behavior_communities, key=lambda c: (-c["size"], c["label"])):
+            metrics = community.get("behavior_metrics", {})
+            relative = community.get("relative_behavior", {})
+            summary = clean_text(community.get("behavior_summary", ""))
+            if len(summary) > 180:
+                summary = summary[:177].rstrip() + "..."
+            lines.append(
+                f"| {community['label']} | {relative.get('activity_level', 'N/A')} | "
+                f"{relative.get('social_level', 'N/A')} | {relative.get('diversity_level', 'N/A')} | "
+                f"{safe_float(metrics.get('avg_playcount', 0.0)):.1f} | "
+                f"{safe_float(metrics.get('avg_friend_count', 0.0)):.2f} | "
+                f"{safe_float(metrics.get('avg_influence_score', 0.0)):.4f} | {summary or 'N/A'} |"
+            )
 
     lines.extend(
         [
@@ -3062,6 +3262,14 @@ def main():
     parser.add_argument("--query", default="")
     parser.add_argument("--out_dir", required=True)
     parser.add_argument(
+        "--algorithm",
+        default="Louvain",
+        help=(
+            "Algorithm label for single-run output. Defaults to Louvain. "
+            "In comparison mode, pass comma-separated labels or omit to infer from filenames."
+        ),
+    )
+    parser.add_argument(
         "--compare",
         action="store_true",
         help="Enable comparison mode in the visualization report",
@@ -3074,16 +3282,29 @@ def main():
     G = nx.read_gml(args.graph)
     node_files = split_paths(args.clustered_nodes)
     profile_files = split_paths(args.community_profiles)
+    algorithm_labels = split_paths(args.algorithm) if args.algorithm else []
     if len(node_files) != len(profile_files):
         raise ValueError(
             "--clustered_nodes and --community_profiles must contain the same number of paths"
         )
     if args.compare and len(node_files) < 2:
         raise ValueError("--compare requires at least two clustered/profile file pairs")
+    if args.compare and len(algorithm_labels) not in (0, 1, len(node_files)):
+        raise ValueError(
+            "--algorithm must be omitted, a single fallback label, or one label per compared input"
+        )
 
     payloads = []
     for idx, (node_file, profile_file) in enumerate(zip(node_files, profile_files)):
-        algorithm = infer_algorithm_name(node_file, idx)
+        if args.compare:
+            fallback = None if len(algorithm_labels) != 1 else algorithm_labels[0]
+            algorithm = (
+                algorithm_labels[idx]
+                if len(algorithm_labels) == len(node_files)
+                else infer_algorithm_name(node_file, idx, fallback)
+            )
+        else:
+            algorithm = algorithm_labels[0] if algorithm_labels else "Louvain"
         clustered_nodes = load_json(node_file)
         community_profiles = load_json(profile_file)
         payload = build_payload(G, clustered_nodes, community_profiles, args.query, algorithm)
