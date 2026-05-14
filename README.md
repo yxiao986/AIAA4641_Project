@@ -1,6 +1,6 @@
 # 🎵 Music Community Analysis Agent
 
-An end-to-end social network analysis agent that mines Last.fm listener data, constructs a social graph, detects music fan communities, and generates LLM-powered semantic profiles — all from a single natural-language command.
+An end-to-end social network analysis agent that mines Last.fm listener data, constructs a social graph, detects music fan communities, and generates LLM-powered semantic and behavioral profiles — all from a single natural-language command.  
 
 > **Group:** yxiao986, herry-sketch, ZuriZHAO, yyu704, ywu044
 
@@ -40,7 +40,7 @@ Music_Community_Agent/
     ├── data-scraper/               # Hybrid BFS scraper (Live API & Offline Dataset)
     ├── community-linker/           # NetworkX graph builder
     ├── community-detector/         # Louvain / Girvan-Newman & PageRank algorithms
-    ├── community-profiler/         # LLM-based semantic cultural profiling
+    ├── community-profiler/         # LLM/heuristic semantic and behavioral profiling  
     └── community-visualization/    # PyVis / HTML report generation
 ```
 
@@ -64,13 +64,21 @@ Mac/Linux:
 
 ```Bash
 export LASTFM_API_KEY="your_lastfm_key"
+
+# Optional: only set the key for the LLM provider you use
 export ANTHROPIC_API_KEY="your_claude_key"
+export OPENAI_API_KEY="your_openai_key"
+export DEEPSEEK_API_KEY="your_deepseek_key"
 ```
 Windows (PowerShell):
 
 ```PowerShell
 $env:LASTFM_API_KEY="your_lastfm_key"
 (Note: If you lack a Last.fm key, the agent will autonomously decide to use the offline HetRec 2011 dataset).
+# Optional: only set the key for the LLM provider you use
+$env:ANTHROPIC_API_KEY="your_claude_key"
+$env:OPENAI_API_KEY="your_openai_key"
+$env:DEEPSEEK_API_KEY="your_deepseek_key"
 ```
 ### Step 3: Wake Up the Agent
 In your AI terminal assistant, install the agent from the registry (assuming StudyClawHub integration):
@@ -103,12 +111,15 @@ python skills/community-linker/main.py --users_file shared_data/raw_users.json -
 # Skill C — detect communities
 python skills/community-detector/main.py --graph shared_data/network.gml --algorithm louvain --out_file shared_data/clustered_nodes.json  
 
-# Skill D — generate semantic profiles
-# Make sure to set your API key if using an LLM provider:
-$env:ANTHROPIC_API_KEY="your_key_here"          # for Claude
-python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider anthropic          #or: openai, heuristic   
+# Skill D — generate semantic and behavioral profiles
+# API provider example:
+python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider deepseek
+
 # Heuristic provider example (no API key needed):
-python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider anthropic --model claude-sonnet-4-6   
+python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider heuristic
+
+# Cost-controlled API test:
+python skills/community-profiler/main.py --clustered_nodes shared_data/clustered_nodes.json --raw_users shared_data/raw_users.json --out_file shared_data/community_profiles.json --provider deepseek --max_communities 2    
 
 # Skill E — visualise and report
 python skills/community-visualization/main.py --graph shared_data/network.gml --clustered_nodes shared_data/clustered_nodes.json --community_profiles shared_data/community_profiles.json --query "Analyze the indie rock community" --out_dir shared_data/   
@@ -152,14 +163,32 @@ Reports modularity Q and community size statistics (min, max, average). Outputs 
 ### Skill D — Community Profiler (`community-profiler`)
 **Author:** ZuriZHAO · **File:** `skills/community-profiler/main.py`
 
-Generates human-readable semantic profiles for each detected community. It aggregates top artists, genre tags, tracks, and the most influential users within each community. If `influence_score` is available in `clustered_nodes.json`, the profiler highlights the highest-influence users in the LLM prompt so that the generated description reflects both musical taste and core community members.   
-Three providers are available via `--provider`:
+Generates human-readable semantic and behavioral profiles for each detected community. It aggregates top artists, genre tags, tracks, representative comments, listening activity, social connectedness, demographic metadata, and influential users within each community.
 
-- `anthropic` — uses Claude (requires `ANTHROPIC_API_KEY`)
-- `openai` — uses GPT (requires `OPENAI_API_KEY`)
+If `raw_users.json` is provided, the profiler can enrich clustered nodes with fields such as `top_artists`, `top_tags`, `top_tracks`, `recent_tracks`, `comments`, `friends`, `playcount`, `country`, `subscriber`, `artist_count`, `recent_track_count`, `influence_score`, and `betweenness_score`.
+
+The output profile for each community includes:
+
+- `label`
+- `description`
+- `behavior_summary`
+- `top_artists`
+- `top_tags`
+- `top_tracks`
+- `behavior_metrics`
+- `relative_behavior`
+- `top_influencers`
+- `high_activity_users`
+- `socially_connected_users`
+
+Four providers are available via `--provider`:
+
+- `anthropic` — uses Claude, requires `ANTHROPIC_API_KEY`
+- `openai` — uses OpenAI models, requires `OPENAI_API_KEY`
+- `deepseek` — uses DeepSeek, requires `DEEPSEEK_API_KEY`
 - `heuristic` — rule-based fallback, no API key needed; safe for local testing
 
-API failures fall back to the heuristic provider automatically so the full pipeline always completes. Use `--max_communities 2` when testing API-based runs to limit cost.
+API-based providers retry failed LLM calls before falling back to heuristic mode. Use `--llm_retries`, `--retry_sleep`, and `--retry_backoff` to control retry behavior. Use `--max_communities 2` when testing API-based runs to limit cost.   
 
 ---
 
@@ -194,7 +223,7 @@ While many agents on StudyClawHub are purely prompt-based (consisting only of ma
 - **Algorithmic Precision:** Tasks like graph construction (Skill B) and community detection (Skill C) involve high-density mathematical computations, such as calculating edge-betweenness or optimizing Louvain modularity. LLMs cannot reliably or deterministically execute complex topological math on hundreds of nodes.
 - **Performance and Scalability:** Processing large datasets—like the HetRec 2011 dataset or live Last.fm API JSON responses—via LLM context windows is slow, highly token-expensive, and prone to hallucination. Python handles data parsing and graph rendering instantly and accurately.
 - **Reproducibility:** Network statistics (density, average degree, clustering coefficients) must be exact. Code execution guarantees consistent, reproducible results every time the pipeline runs.
-- **The Best of Both Worlds:** We still leverage LLMs exactly where they excel. After our Python execution engine handles the heavy computational lifting of data collection and graph partitioning, Skill D applies prompt-based LLM calls to generate intuitive, semantic cultural profiles for the mathematically detected communities.
+- **The Best of Both Worlds:** We still leverage LLMs exactly where they excel. After our Python execution engine handles the heavy computational lifting of data collection and graph partitioning, Skill D applies LLM or heuristic profiling to generate intuitive semantic and behavioral profiles for the mathematically detected communities.
 Adding this section directly addresses why your repository has so many .py files and
 
 ---
@@ -225,4 +254,4 @@ anthropic>=0.25
 scipy>=1.10
 openai>=1.0.0
 ```
-
+`openai>=1.0.0` is also used for the DeepSeek provider because DeepSeek is called through an OpenAI-compatible interface.   

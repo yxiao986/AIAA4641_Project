@@ -1,6 +1,6 @@
 ---
 name: music-community-analysis-agent
-description: "An end-to-end SNA agent that scrapes Last.fm data, builds social graphs, compares fan communities, and generates LLM-powered profiles."
+description: "An end-to-end SNA agent that scrapes Last.fm data, builds social graphs, compares fan communities, and generates LLM-powered semantic and behavioral profiles."
 author: yxiao986
 version: 0.3.0
 tags: [music, social-network-analysis, graph-ml, llm, community-discovery, algorithms]
@@ -22,7 +22,7 @@ The Agent coordinates five major Skill modules to achieve the following end-to-e
 * **Network Modeling**: Transforms raw JSON data into a standard GML format social graph.
 * **Community Clustering**: Applies Louvain or Girvan-Newman algorithms to partition listeners into communities, and computes a PageRank-based `influence_score` for each node.
 * **Influence Ranking**: Automatically calculates PageRank centralities to identify key opinion leaders (KOLs) within each musical subculture.
-* **Semantic Profiling**: Uses LLMs (Claude/GPT) when API keys are available, or a heuristic fallback when API calls fail or no key is configured. The profiler also uses `influence_score` to highlight core users in each community.
+* **Semantic and Behavioral Profiling**: Uses LLMs such as Claude, OpenAI models, or DeepSeek when API keys are available, or a heuristic fallback when API calls fail or no key is configured. The profiler generates a community `label`, musical `description`, and `behavior_summary`, and uses signals such as `influence_score`, `betweenness_score`, playcount, friend count, artist diversity, and relative behavior levels to describe each community.  
 * **Visual Output**: Generates interactive HTML network graphs.
 
 ## 2. When to Use (Trigger Keywords)
@@ -45,9 +45,9 @@ However, `visualize_existing` is different: it is designed to reuse existing res
 
 | Agent Task | When to Use | Example User Queries / Trigger Keywords |
 |---|---|---|
-| `community_analysis` | Use this when the user wants to detect, inspect, or understand the community structure of a music/social network. This is the normal single-analysis mode. | `analyze communities`, `detect communities`, `show community structure`, `analyze the indie rock community`, `analyze users around Radiohead`, `community analysis`, `社区分析`, `社区结构`, `分析音乐社区` |
+| `community_analysis` | Use this when the user wants to detect, inspect, profile, or understand the community structure and behavior patterns of a music/social network. This is the normal single-analysis mode. | `analyze communities`, `detect communities`, `show community structure`, `profile communities`, `label communities`, `analyze community behavior`, `summarize listener groups`, `analyze the indie rock community`, `analyze users around Radiohead`, `community analysis`, `社区分析`, `社区结构`, `分析音乐社区`, `生成社区画像`, `分析社群行为` |  
 | `algorithm_comparison` | Use this when the user wants to compare different community detection methods or generate two sets of community results. | `compare algorithms`, `compare Louvain and Girvan-Newman`, `two methods`, `two results`, `algorithm comparison`, `generate two community results`, `对比算法`, `比较 Louvain 和 Girvan-Newman`, `生成两种结果` |
-| `full_analysis` | Use this when the user wants a complete end-to-end analysis, including graph construction, community detection, comparison, influence ranking, profiling, and visualization/report outputs. | `full analysis`, `complete analysis`, `comprehensive analysis`, `end-to-end analysis`, `run everything`, `all results`, `完整分析`, `全面分析`, `完整流程`, `全部跑一遍` |
+| `full_analysis` | Use this when the user wants a complete end-to-end analysis, including graph construction, community detection, algorithm comparison, influence ranking, semantic/behavioral profiling, and visualization/report outputs. | `full analysis`, `complete analysis`, `comprehensive analysis`, `end-to-end analysis`, `run everything`, `all results`, `full report with profiles`, `generate profiles and visualizations`, `完整分析`, `全面分析`, `完整流程`, `全部跑一遍`, `生成完整报告` |  
 | `influence_ranking` | Use this when the user wants to find important, central, influential, or bridge users in the network. | `top influencers`, `influence ranking`, `most influential users`, `central users`, `key users`, `important users`, `hub users`, `bridge users`, `核心用户`, `关键用户`, `最有影响力的用户` |
 | `visualize_existing` | Use this when the user only wants to visualize or report on existing outputs without rerunning earlier analysis steps. | `visualize existing`, `only visualize`, `reuse existing results`, `regenerate dashboard`, `show existing results`, `只可视化已有结果`, `复用已有文件`, `重新生成图表` |
 
@@ -73,7 +73,7 @@ Selected task:
 algorithm_comparison
 
 User query:
-"Give me a full report with community structure, profiles, influencers, and visualizations."
+"Give me a full report with community structure, behavior profiles, influencers, and visualizations."
 
 Selected task:
 full_analysis
@@ -91,7 +91,7 @@ Because this Agent relies on real-time external data scraping and LLM semantic i
 1.  **Data Collection**: Uses `data-scraper` (Skill A) to gather users and interactions.
 2.  **Network Construction**: Uses `community-linker` to transform raw JSON profiles into a GML graph.
 3.  **Community Discovery**: Uses `community-detector` to partition the network into distinct sub-communities.
-4.  **Semantic Profiling**: Uses `community-profiler` to generate natural language descriptions for each cluster.
+4.  **Semantic and Behavioral Profiling**: Uses `community-profiler` to generate natural language labels, music-taste descriptions, behavior summaries, and core-user evidence for each cluster.  
 5.  **Reporting**: Uses `community-visualization` to produce interactive visualizations and a final Markdown briefing.
 
 **1. Last.fm API Key (Required for Skill A - Online Mode):**
@@ -99,10 +99,29 @@ Used to scrape real-time user social networks.
 * Mac/Linux: `export LASTFM_API_KEY="your_lastfm_key"`
 * Windows (PowerShell): `$env:LASTFM_API_KEY="your_lastfm_key"`
 
-**2. LLM API Key (Required for Skill D - Semantic Profiler):**
-Used to generate human-readable cultural profiles for the detected communities. Depending on your configuration in Skill D, export the relevant key:
-* Mac/Linux: `export ANTHROPIC_API_KEY="your_claude_key"` (or `OPENAI_API_KEY`)
-* Windows (PowerShell): `$env:ANTHROPIC_API_KEY="your_claude_key"`
+**2. LLM API Key (Optional for Skill D - Semantic Profiler):**
+Used to generate human-readable semantic and behavioral profiles for the detected communities. Depending on the selected provider in Skill D, export the relevant key:
+
+* Mac/Linux:
+  * `export ANTHROPIC_API_KEY="your_claude_key"`
+  * `export OPENAI_API_KEY="your_openai_key"`
+  * `export DEEPSEEK_API_KEY="your_deepseek_key"`
+
+* Windows PowerShell:
+  * `$env:ANTHROPIC_API_KEY="your_claude_key"`
+  * `$env:OPENAI_API_KEY="your_openai_key"`
+  * `$env:DEEPSEEK_API_KEY="your_deepseek_key"`
+
+Only the key for the selected provider is required. If the selected provider key is missing, Skill D automatically falls back to heuristic profiling.   
+
+Skill D supports four profiling providers:
+
+- `--provider anthropic`
+- `--provider openai`
+- `--provider deepseek`
+- `--provider heuristic`
+
+For API-based providers, the profiler retries failed LLM calls before falling back to heuristic mode. This makes the full Agent pipeline more robust when there are temporary API errors, rate limits, or malformed LLM JSON responses.
 
 *(Note: If you do not have a Last.fm API key, you can still run the Agent flawlessly using the offline HetRec dataset.)*
 
