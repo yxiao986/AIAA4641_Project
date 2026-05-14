@@ -2,7 +2,7 @@
 name: community-visualization
 description: "Build interactive music community dashboards, static PNGs, and rendered reports from a network graph. Supports single-algorithm visualization and Louvain vs Girvan-Newman comparison mode."
 author: Yue Yu
-version: 1.0.0
+version: 3.0.0
 tags:
   - visualization
   - dashboard
