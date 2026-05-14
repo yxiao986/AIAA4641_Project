@@ -15,13 +15,7 @@ metadata:
         - python3
 ---
 
-# Graph Linker
 
-You are helping the user build a clean, analysis-ready social network graph from raw JSON data produced by the Data Scraper skill.
-
-## When to trigger
-
-Activate when the user says "build graph", "link nodes", "construct network", "run graph linker", or when `raw_users.json` and `raw_interactions.json` are available and a `network.gml` is needed.
 
 ## Workflow
 
