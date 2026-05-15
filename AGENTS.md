@@ -18,7 +18,7 @@ This project is an Agent specifically designed to analyze Last.fm music listener
 
 ## 1. Core Features
 The Agent coordinates five major Skill modules to achieve the following end-to-end pipeline:
-* **Hybrid Data Scraping**: Supports Offline mode using the HetRec 2011 dataset and Online mode using the live Last.fm REST API. **Offline** mode can start from an artist or tag, while **Online** mode must start from a known Last.fm username because the public API no longer supports artist-to-user reverse lookup.
+* **Hybrid Data Scraping**: Supports **Offline** (HetRec 2011) and **Online** (Live API) modes. **Offline** mode supports artist, tag, or "none" seeds, while **Online** mode uses BFS expansion starting from a seed_user to extract real-time social networks and demographic/behavioral metadata.
 * **Network Modeling**: Transforms raw JSON data into a standard GML format social graph.
 * **Community Clustering**: Applies Louvain or Girvan-Newman algorithms to partition listeners into communities, and computes a PageRank-based `influence_score` for each node.
 * **Influence Ranking**: Automatically calculates PageRank centralities to identify key opinion leaders (KOLs) within each musical subculture.
