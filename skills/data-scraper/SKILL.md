@@ -96,8 +96,7 @@ Written automatically whenever `--source api` is used. **Not produced in hetrec
 mode** — the HetRec dataset does not contain the demographic and behavioural
 fields that make this file useful.
 
-Consumed by **Skill D (Community Profiler)** to enrich community profiles with
-user-level demographic statistics. Join to `raw_users.json` on `username`.
+Consumed by **Skill B (Community Linker)**.
 
 ```json
 {
@@ -207,7 +206,7 @@ extended: 200 users -> shared_data/raw_users_extended.json
 
 ```
 data-scraper/
-├── skill.md     # This file (registry metadata + docs)
+├── SKILL.md     # This file (registry metadata + docs)
 └── main.py      # CLI, schema, offline loader, online client - all in one file
 ```
 
