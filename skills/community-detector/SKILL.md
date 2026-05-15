@@ -34,17 +34,17 @@ Ensure `shared_data/network.gml` exists.
 ### Step 2: Execution Logic (CRITICAL)
 
 - **Scenario A (Standard)**: If the user just wants clustering, run:
-  `python3 main.py --graph shared_data/network.gml --algorithm louvain --out_file shared_data/clustered_nodes.json`
+  `python skills/community-detector/main.py --graph shared_data/network.gml --algorithm louvain --out_file shared_data/clustered_nodes.json`
 
 - **Scenario B (Specific)**: If the user specifies Girvan-Newman, run:
-  `python3 main.py --graph shared_data/network.gml --algorithm girvan_newman --out_file shared_data/clustered_nodes.json`
+  `python skills/community-detector/main.py --graph shared_data/network.gml --algorithm girvan_newman --out_file shared_data/clustered_nodes.json`
 
 - **Scenario C (Comparison)**: If the user wants to COMPARE, run TWO commands:
-  1. `python3 main.py --graph shared_data/network.gml --algorithm louvain --out_file shared_data/clustered_nodes_louvain.json`
-  2. `python3 main.py --graph shared_data/network.gml --algorithm girvan_newman --out_file shared_data/clustered_nodes_gn.json`
+  1. `python skills/community-detector/main.py --graph shared_data/network.gml --algorithm louvain --out_file shared_data/clustered_nodes_louvain.json`
+  2. `python skills/community-detector/main.py --graph shared_data/network.gml --algorithm girvan_newman --out_file shared_data/clustered_nodes_gn.json`
 
 ### Step 3: Influence Ranking
-Note that `main.py` automatically calculates PageRank and includes `influence_score` in the output JSON, regardless of the clustering algorithm used.
+Note that `main.py` automatically calculates PageRank and includes `influence_score` and `betweenness_score` in the output JSON, regardless of the clustering algorithm used.
 
 ## Output
 Inform the user about the Modularity scores for each run and confirm which JSON files were created in `shared_data/`.
